@@ -149,6 +149,7 @@ cd autonomous-being-framework
 
 ```bash
 pip install -r requirements.txt
+mv my_digital_being/config_sample my_digital_being/config
 ```
 
 ### 3. Onboarding & Configuration
@@ -156,7 +157,7 @@ pip install -r requirements.txt
 You can pick one of these approaches:
 
 - **CLI:** `python my_digital_being/tools/onboard.py`
-- **Web UI:** `python -m server.server` then open `http://localhost:8000` in your browser and follow the onboarding prompts.
+- **Web UI:** `python my_digital_being/server.py` then open `http://localhost:8000` in your browser and follow the onboarding prompts.
 
 Either way, you’ll be guided through:
 

@@ -1,3 +1,7 @@
+# Storage & Config
+storage/
+my_digital_being/config/
+
 # Environment variables
 .env
 
@@ -12,6 +16,7 @@ build/
 *.egg-info/
 
 # Virtual environment
+.venv/
 venv/
 env/
 
