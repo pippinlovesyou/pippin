@@ -11,11 +11,10 @@ Implements:
 import asyncio
 import json
 import logging
-import os
 import http
 import mimetypes
 from pathlib import Path
-from typing import Dict, Any, Set, Optional, Union, Tuple
+from typing import Dict, Any, Set, Union, Tuple
 from datetime import datetime
 
 import websockets

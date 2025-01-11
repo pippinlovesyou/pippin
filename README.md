@@ -169,10 +169,13 @@ mv my_digital_being/config_sample my_digital_being/config
 
 ### 3. Onboarding & Configuration
 
-You can pick one of these approaches:
+You can pick one of these approaches after you've navigated to the project directory:
 
-- **CLI:** `python my_digital_being/tools/onboard.py`
-- **Web UI:** `python my_digital_being/server.py` then open `http://localhost:8000` in your browser and follow the onboarding prompts.
+```bash
+cd my_digital_being
+```
+- **CLI:** `python -m tools.onboard`
+- **Web UI:** `python -m server` then open `http://localhost:8000` in your browser and follow the onboarding prompts.
 
 Either way, you’ll be guided through:
 
@@ -183,7 +186,7 @@ Either way, you’ll be guided through:
 
 ### 4. Launch the Agent
 
-- **CLI:** `python -m my_digital_being/framework.main`
+- **CLI:** `python -m framework.main`
 - **Web UI:** Once onboarding is complete, a Start button appears—click to run the main loop.
 
 ---

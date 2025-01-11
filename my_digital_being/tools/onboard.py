@@ -1,13 +1,11 @@
-import os
 import json
 import logging
-import sys
 import asyncio
 from pathlib import Path
 
 # We'll need to call api_manager in a synchronous context
 from framework.api_management import api_manager
-from framework.activity_loader import ActivityLoader  # [ADDED] for dynamically listing activities
+from framework.activity_loader import ActivityLoader
 
 # Adjust these if your config is stored differently:
 CHARACTER_CONFIG_FILE = Path(__file__).parent.parent / "config" / "character_config.json"
@@ -310,6 +308,9 @@ def main():
     if "activities_config" not in activity_constraints:
         activity_constraints["activities_config"] = {}
     configure_activities_cli(activity_constraints["activities_config"])
+
+    # Set setup_complete to true
+    character_config["setup_complete"] = True
 
     # Save updated (without storing any user-provided API keys in JSON)
     print("\nSaving updated JSON configs...")
