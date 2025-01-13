@@ -92,7 +92,7 @@ You can choose to run everything from your terminal or via a web-based UI. Both 
 
 - Python 3.9+ recommended.
 - A GitHub account (to fork).
-- A Composio developer key (optional but recommended) if you want to do OAuth-based skill connections.
+- A [Composio](https://composio.dev/) developer key (optional but recommended) if you want to do OAuth-based skill connections.
 
 ---
 
