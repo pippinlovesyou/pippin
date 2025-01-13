@@ -26,3 +26,6 @@ env/
 
 # Logs
 *.log
+
+# VSCode
+*.code-workspace
