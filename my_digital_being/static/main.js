@@ -1295,48 +1295,27 @@ function showApiKeyForm(appName, keyDetails) {
 
   modal.dataset.appName = appName;
 
-  if (keyDetails && keyDetails.fields && keyDetails.fields.length > 0) {
-    // Create form with all required fields
-    const fields = keyDetails.fields;
-
-    messageEl.innerHTML = `
-      <div class="api-key-details">
-        <h4>${appName} API Key Setup</h4>
-        <div id="apiKeyFields">
-          ${fields.map(field => `
-            <div class="field-group" style="margin-bottom: 15px;">
-              <label for="field_${field.name}">${field.display_name}${field.required ? ' *' : ''}</label>
-              <input type="text" 
-                     id="field_${field.name}" 
-                     class="styled-input" 
-                     placeholder="${field.display_name}"
-                     data-field-name="${field.name}"
-                     data-required="${field.required}">
-              <p class="field-description">${field.description || ''}</p>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  } else {
-    // Fallback for apps that don't provide field details
-    messageEl.innerHTML = `
-      <div class="api-key-details">
-        <h4>${appName} API Key Setup</h4>
-        <div id="apiKeyFields">
-          <div class="field-group">
-            <label for="field_api_key">API Key *</label>
+  // Create form with all required fields
+  const fields = keyDetails?.fields || [];
+  messageEl.innerHTML = `
+    <div class="api-key-details">
+      <h4>${appName} API Key Setup</h4>
+      <div id="apiKeyFields">
+        ${fields.map(field => `
+          <div class="field-group" style="margin-bottom: 15px;">
+            <label for="field_${field.name}">${field.display_name}${field.required ? ' *' : ''}</label>
             <input type="text" 
-                   id="field_api_key" 
+                   id="field_${field.name}" 
                    class="styled-input" 
-                   placeholder="Enter API Key"
-                   data-field-name="api_key"
-                   data-required="true">
+                   placeholder="${field.display_name}"
+                   data-field-name="${field.name}"
+                   data-required="${field.required}">
+            <p class="field-description">${field.description || ''}</p>
           </div>
-        </div>
+        `).join('')}
       </div>
-    `;
-  }
+    </div>
+  `;
 
   const validationDiv = document.createElement('div');
   validationDiv.id = 'apiKeyValidation';
