@@ -12,7 +12,7 @@ TARGETS = [
     "my_digital_being/tools",
     "my_digital_being/activities",
     "my_digital_being/static",
-    "my_digital_being/config",
+    "my_digital_being/config_sample",
     "my_digital_being/server.py",
 ]
 

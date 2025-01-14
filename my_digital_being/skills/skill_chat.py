@@ -39,8 +39,9 @@ class ChatSkill:
             return False
 
     async def get_chat_completion(self, prompt: str, 
-                                system_prompt: str = "You are a helpful AI assistant.", 
-                                max_tokens: int = 150) -> Dict[str, Any]:
+                                  system_prompt: str = "You are a helpful AI assistant.", 
+                                  max_tokens: int = 150,
+                                  model: str = "gpt-4o") -> Dict[str, Any]:
         """
         Get a chat completion response.
 
@@ -48,6 +49,7 @@ class ChatSkill:
             prompt: The user's input prompt
             system_prompt: Optional system message to set the AI's behavior
             max_tokens: Maximum tokens in the response
+            model: The model to use for the chat completion
 
         Returns:
             Dictionary containing success status, response data or error
@@ -61,7 +63,7 @@ class ChatSkill:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+                model=model,  # Use the model parameter
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
