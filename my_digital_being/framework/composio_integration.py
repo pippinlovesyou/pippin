@@ -119,19 +119,27 @@ class ComposioManager:
             if not app_info:
                 return {"success": False, "error": f"Unknown app: {app_name}"}
 
+            # Check if OAuth is supported
+            auth_schemes = self._toolset.get_auth_schemes(app=app_info["key"])
+            auth_modes = [scheme.auth_mode for scheme in auth_schemes]
+            if "OAUTH2" not in auth_modes:
+                return {"success": False, "error": "OAuth is not supported for this app"}
+
+            logger.info(f"Initiating OAuth flow for {app_name}")
             connection_req = self._toolset.initiate_connection(
                 redirect_url=redirect_url,
                 entity_id=self._entity_id,
-                app=app_info["key"]  # e.g. "twitter"
+                app=app_info["key"],
+                auth_scheme="OAUTH2"
             )
-            # Some versions of Composio call it 'connectionId', or 'connectedAccountId'
+
             conn_id = getattr(connection_req, "connectionId", None)
             if not conn_id:
                 conn_id = getattr(connection_req, "connectedAccountId", None)
             if not conn_id:
                 return {
                     "success": False,
-                    "error": "'ConnectionRequestModel' object has no attribute 'connectionId'"
+                    "error": "Failed to get connection ID"
                 }
 
             return {
@@ -141,6 +149,82 @@ class ComposioManager:
             }
         except Exception as e:
             logger.error(f"initiate_oauth_flow error for {app_name}: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def initiate_api_key_connection(self, app_name: str, connection_params: Dict[str, str]) -> Dict[str, Any]:
+        """Initiate a connection using API key authentication."""
+        if not self._toolset:
+            return {"success": False, "error": "Toolset not initialized"}
+
+        try:
+            upper_app = app_name.upper()
+            app_info = self._available_apps.get(upper_app)
+            if not app_info:
+                return {"success": False, "error": f"Unknown app: {app_name}"}
+
+            # Check if API_KEY is supported
+            auth_schemes = self._toolset.get_auth_schemes(app=app_info["key"])
+            auth_modes = [scheme.auth_mode for scheme in auth_schemes]
+            if "API_KEY" not in auth_modes:
+                return {"success": False, "error": "API key authentication is not supported for this app"}
+
+            auth_scheme = self._toolset.get_auth_scheme_for_app(
+                app=app_info["key"],
+                auth_scheme="API_KEY"
+            )
+            
+            # Get all required fields
+            required_fields = [field for field in auth_scheme.fields if field.required]
+            if not required_fields:
+                return {"success": False, "error": "No required fields found in auth scheme"}
+            
+            logger.info(f"Required fields for {app_name}: {[f.name for f in required_fields]}")
+            logger.info(f"Provided connection params: {connection_params}")
+            
+            # Check all required fields are provided
+            missing_fields = []
+            for field in required_fields:
+                if field.name not in connection_params:
+                    missing_fields.append({
+                        "name": field.name,
+                        "display_name": field.display_name,
+                        "description": field.description
+                    })
+            
+            if missing_fields:
+                logger.error(f"Missing fields for {app_name}: {missing_fields}")
+                return {
+                    "success": False,
+                    "error": "Missing required fields",
+                    "missing_fields": missing_fields
+                }
+
+            logger.info(f"Initiating API key connection for {app_name} with params: {connection_params}")
+            connection_req = self._toolset.initiate_connection(
+                app=app_info["key"],
+                entity_id=self._entity_id,
+                auth_scheme="API_KEY",
+                connected_account_params=connection_params
+            )
+
+            conn_id = getattr(connection_req, "connectionId", None)
+            if not conn_id:
+                conn_id = getattr(connection_req, "connectedAccountId", None)
+            if not conn_id:
+                return {
+                    "success": False,
+                    "error": "Failed to get connection ID"
+                }
+
+            self.mark_app_connected(app_name, conn_id)
+            return {
+                "success": True,
+                "connection_id": conn_id,
+                "message": "API key connection successful"
+            }
+
+        except Exception as e:
+            logger.error(f"Error initiating API key connection for {app_name}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def handle_oauth_callback(self, connection_id: str, code: str) -> Dict[str, Any]:
@@ -254,6 +338,46 @@ class ComposioManager:
         except Exception as ex:
             logger.error(f"Error retrieving actions for {app_name} from Composio: {ex}", exc_info=True)
             return {"success": False, "error": str(ex)}
+
+    async def get_auth_schemes(self, app_name: str) -> Dict[str, Any]:
+        """Get available authentication schemes for an app."""
+        if not self._toolset:
+            return {"success": False, "error": "Toolset not initialized"}
+
+        try:
+            upper_app = app_name.upper()
+            app_info = self._available_apps.get(upper_app)
+            if not app_info:
+                return {"success": False, "error": f"Unknown app: {app_name}"}
+
+            auth_schemes = self._toolset.get_auth_schemes(app=app_info["key"])
+            auth_modes = [scheme.auth_mode for scheme in auth_schemes]
+            
+            # Get API key details if API_KEY auth is available
+            api_key_details = None
+            if "API_KEY" in auth_modes:
+                auth_scheme = self._toolset.get_auth_scheme_for_app(
+                    app=app_info["key"], 
+                    auth_scheme="API_KEY"
+                )
+                # Get all fields for API_KEY auth
+                api_key_details = {
+                    'fields': [{
+                        'name': field.name,
+                        'display_name': field.display_name,
+                        'description': field.description,
+                        'required': field.required
+                    } for field in auth_scheme.fields]
+                }
+
+            return {
+                "success": True,
+                "auth_modes": auth_modes,
+                "api_key_details": api_key_details
+            }
+        except Exception as e:
+            logger.error(f"Error getting auth schemes for {app_name}: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
 
 
 # Global single instance
