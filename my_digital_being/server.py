@@ -541,6 +541,45 @@ class DigitalBeingServer:
                     logger.error(f"Error saving onboarding data: {e}", exc_info=True)
                     return {"success": False, "message": str(e)}
 
+            elif command == "get_auth_schemes":
+                app_name = params.get("app_name")
+                if not app_name:
+                    return {"success": False, "error": "Missing app_name"}
+                try:
+                    result = await api_manager.get_auth_schemes(app_name)
+                    return result
+                except Exception as e:
+                    logger.error(f"get_auth_schemes error: {e}")
+                    return {"success": False, "error": str(e)}
+
+            elif command == "initiate_api_key_connection":
+                app_name = params.get("app_name")
+                connection_params = params.get("connection_params")
+                if not app_name or not connection_params:
+                    return {"success": False, "error": "Missing app_name or connection_params"}
+                try:
+                    result = await api_manager.initiate_api_key_connection(app_name, connection_params)
+                    return result
+                except Exception as e:
+                    logger.error(f"initiate_api_key_connection error: {e}")
+                    return {"success": False, "error": str(e)}
+
+            elif command == "initiate_oauth_with_params":
+                app_name = params.get("app_name")
+                base_url = params.get("base_url", "http://localhost:8000")
+                connection_params = params.get("connection_params")
+                if not app_name or not connection_params:
+                    return {"success": False, "error": "Missing app_name or connection_params"}
+                redirect_url = f"{base_url}/oauth_callback"
+                try:
+                    result = await api_manager.composio_manager.initiate_oauth_with_params(
+                        app_name, redirect_url, connection_params
+                    )
+                    return result
+                except Exception as e:
+                    logger.error(f"initiate_oauth_with_params error: {e}")
+                    return {"success": False, "error": str(e)}
+
         except Exception as e:
             logger.error(f"handle_command {command} error: {e}")
             return {"success": False, "message": str(e)}

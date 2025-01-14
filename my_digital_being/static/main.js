@@ -161,7 +161,7 @@ function connect() {
   };
 }
 
-function sendCommand(command, params={}) {
+function sendCommand(command, params = {}) {
   return new Promise((resolve, reject) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       return reject('WebSocket not connected');
@@ -270,7 +270,7 @@ function updateRunningIndicator(stateData) {
   runningEl.textContent = text;
 
   // clear existing classes
-  runningEl.classList.remove('running','paused','stopped','not-configured');
+  runningEl.classList.remove('running', 'paused', 'stopped', 'not-configured');
   runningEl.classList.add(cssClass);
 }
 
@@ -282,25 +282,25 @@ function updateRunningIndicator(stateData) {
  *******************************************************/
 function requestSystemStatus() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({type:'command', command:'get_system_status'}));
+  ws.send(JSON.stringify({ type: 'command', command: 'get_system_status' }));
 }
 function getActivities() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({type:'command', command:'get_activities'}));
+  ws.send(JSON.stringify({ type: 'command', command: 'get_activities' }));
 }
 function getConfig() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({type:'command', command:'get_config'}));
+  ws.send(JSON.stringify({ type: 'command', command: 'get_config' }));
 }
 
 /*******************************************************
  *               Activity History
  *******************************************************/
-function getActivityHistory(offset=0) {
+function getActivityHistory(offset = 0) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({
-    type:'command',
-    command:'get_activity_history',
+    type: 'command',
+    command: 'get_activity_history',
     params: { offset, limit: PAGE_SIZE }
   }));
 }
@@ -331,7 +331,7 @@ function displaySystemStatus(data) {
     <h4>Current State</h4>
   `;
 
-  Object.entries(stateObj).forEach(([k,v]) => {
+  Object.entries(stateObj).forEach(([k, v]) => {
     if (k === 'last_activity_timestamp' && v) {
       v = new Date(v).toLocaleString();
     }
@@ -383,7 +383,7 @@ function displayActivityConfigs(data) {
         <span class="status-value">
           Energy: ${cfg.energy_cost}<br>
           Cooldown: ${cfg.cooldown}s<br>
-          Required Skills: ${(cfg.required_skills||[]).join(', ')}<br>
+          Required Skills: ${(cfg.required_skills || []).join(', ')}<br>
           Last Execution: ${cfg.last_execution ? new Date(cfg.last_execution).toLocaleString() : 'Never'}
         </span>
         <button class="btn secondary" onclick="editActivity('${k}')">Edit</button>
@@ -546,7 +546,7 @@ async def execute(self, shared_data) -> ActivityResult:
       getActivities();
     }, 1500);
 
-  } catch(e) {
+  } catch (e) {
     errorDiv.innerText = e.message;
     errorDiv.style.display = 'block';
   }
@@ -588,7 +588,7 @@ async function createNewActivityRaw() {
       getActivities();
     }, 1500);
 
-  } catch(e) {
+  } catch (e) {
     errorDiv.innerText = e.message;
     errorDiv.style.display = 'block';
   }
@@ -619,7 +619,7 @@ async function editActivity(activityKey) {
     `;
     const codeArea = document.getElementById('activityCodeTextarea');
     codeArea.value = resp.code;
-  } catch(e) {
+  } catch (e) {
     console.error(e);
     alert("Error loading activity code");
   }
@@ -656,7 +656,7 @@ async function saveActivityCode() {
       getActivities();
     }, 1500);
 
-  } catch(e) {
+  } catch (e) {
     errorDiv.innerText = e.message;
     errorDiv.style.display = 'block';
   }
@@ -752,18 +752,18 @@ function displayActivityHistory(data) {
             <span style="color:var(--text-secondary)">${new Date(a.timestamp).toLocaleString()}</span>
             <span style="color:${col}; font-weight:bold;">${a.activity_type}</span>
             ${a.success
-              ? `<span style="color: var(--success-color)">✓ Success</span>`
-              : `<span style="color: var(--error-color)">✗ Failed - ${a.error||''}</span>`
-            }
+          ? `<span style="color: var(--success-color)">✓ Success</span>`
+          : `<span style="color: var(--error-color)">✗ Failed - ${a.error || ''}</span>`
+        }
           </div>
           ${a.data ? `
             <div style="background:var(--card-bg);padding:8px;margin-top:8px;border-radius:4px;">
-              <pre>${JSON.stringify(a.data,null,2)}</pre>
+              <pre>${JSON.stringify(a.data, null, 2)}</pre>
             </div>
           ` : ''}
           ${a.metadata ? `
             <div style="background:var(--card-bg);padding:8px;margin-top:8px;border-radius:4px;">
-              <pre>${JSON.stringify(a.metadata,null,2)}</pre>
+              <pre>${JSON.stringify(a.metadata, null, 2)}</pre>
             </div>
           ` : ''}
         </div>
@@ -833,46 +833,46 @@ function initializeActivityChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode:'nearest', axis:'x', intersect:false },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
         legend: {
-          position:'top',
-          labels:{ color:'#fff', usePointStyle:true }
+          position: 'top',
+          labels: { color: '#fff', usePointStyle: true }
         },
-        tooltip: { mode:'index', intersect:false }
+        tooltip: { mode: 'index', intersect: false }
       },
-      scales:{
-        x:{
-          type:'time',
-          time:{ unit:'day' },
-          grid:{ color:'rgba(255,255,255,0.1)' },
-          ticks:{ color:'#fff', maxRotation:45 }
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit: 'day' },
+          grid: { color: 'rgba(255,255,255,0.1)' },
+          ticks: { color: '#fff', maxRotation: 45 }
         },
-        y:{
-          beginAtZero:true,
-          grid:{ color:'rgba(255,255,255,0.1)' },
-          ticks:{ color:'#fff', stepSize:1, precision:0 }
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255,255,255,0.1)' },
+          ticks: { color: '#fff', stepSize: 1, precision: 0 }
         }
       },
-      elements:{
-        point:{
-          radius:4,
-          hoverRadius:6,
-          borderWidth:2,
-          backgroundColor:'rgba(255,255,255,0.8)'
+      elements: {
+        point: {
+          radius: 4,
+          hoverRadius: 6,
+          borderWidth: 2,
+          backgroundColor: 'rgba(255,255,255,0.8)'
         },
-        line:{
-          tension:0.3,
-          borderWidth:2,
-          fill:true,
-          backgroundColor:function(ctx){
+        line: {
+          tension: 0.3,
+          borderWidth: 2,
+          fill: true,
+          backgroundColor: function (ctx) {
             const chart = ctx.chart;
-            const {ctx:chartCtx, chartArea} = chart;
-            if(!chartArea) return null;
+            const { ctx: chartCtx, chartArea } = chart;
+            if (!chartArea) return null;
             const color = ctx.dataset.borderColor;
-            const gradient = chartCtx.createLinearGradient(0,chartArea.bottom,0,chartArea.top);
-            gradient.addColorStop(0,'rgba(0,0,0,0)');
-            gradient.addColorStop(1,color.replace('rgb','rgba').replace(')',',0.2)'));
+            const gradient = chartCtx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, color.replace('rgb', 'rgba').replace(')', ',0.2)'));
             return gradient;
           }
         }
@@ -883,7 +883,7 @@ function initializeActivityChart() {
 }
 
 function updateActivityChart() {
-  if(!activityChart || !activityData) return;
+  if (!activityChart || !activityData) return;
 
   const timeRange = document.getElementById('timeRange').value;
   const selectedActivities = new Set(
@@ -895,31 +895,31 @@ function updateActivityChart() {
   const activities = {};
   const now = new Date();
   let startTime;
-  switch(timeRange) {
+  switch (timeRange) {
     case 'hourly':
-      startTime = new Date(now.getTime() - 24*3600_000);
+      startTime = new Date(now.getTime() - 24 * 3600_000);
       break;
     case 'daily':
-      startTime = new Date(now.getTime() - 7*24*3600_000);
+      startTime = new Date(now.getTime() - 7 * 24 * 3600_000);
       break;
     case 'weekly':
-      startTime = new Date(now.getTime() - 4*7*24*3600_000);
+      startTime = new Date(now.getTime() - 4 * 7 * 24 * 3600_000);
       break;
     case 'monthly':
-      startTime = new Date(now.getTime() - 12*30*24*3600_000);
+      startTime = new Date(now.getTime() - 12 * 30 * 24 * 3600_000);
       break;
     default:
-      startTime = new Date(now.getTime() - 7*24*3600_000);
+      startTime = new Date(now.getTime() - 7 * 24 * 3600_000);
   }
 
   // Count occurrences in each period bucket
   activityData.forEach(act => {
-    if(!selectedActivities.has(act.activity_type)) return;
+    if (!selectedActivities.has(act.activity_type)) return;
     const ts = new Date(act.timestamp);
-    if(ts < startTime) return;
+    if (ts < startTime) return;
     // Use getPeriodKey from chart-utils
     const periodKey = getPeriodKey(ts, timeRange);
-    if(!activities[act.activity_type]) {
+    if (!activities[act.activity_type]) {
       activities[act.activity_type] = {};
     }
     activities[act.activity_type][periodKey] =
@@ -940,19 +940,19 @@ function updateActivityChart() {
       label: actType,
       data: dataPoints,
       borderColor: c,
-      backgroundColor: c.replace('rgb','rgba').replace(')',',0.2)'),
-      borderWidth:2,
-      tension:0.3
+      backgroundColor: c.replace('rgb', 'rgba').replace(')', ',0.2)'),
+      borderWidth: 2,
+      tension: 0.3
     };
   });
 
   activityChart.data.datasets = datasets;
   // Set x-axis time unit
   activityChart.options.scales.x.time.unit = (
-    timeRange === 'hourly'  ? 'hour' :
-    timeRange === 'daily'   ? 'day'  :
-    timeRange === 'weekly'  ? 'week' : 
-                              'month'
+    timeRange === 'hourly' ? 'hour' :
+      timeRange === 'daily' ? 'day' :
+        timeRange === 'weekly' ? 'week' :
+          'month'
   );
 
   activityChart.update();
@@ -961,7 +961,7 @@ function updateActivityChart() {
 /*******************************************************
  *               Rendering helpers
  *******************************************************/
-function renderStatusItem(label, value, tooltip='') {
+function renderStatusItem(label, value, tooltip = '') {
   return `
     <div class="status-item">
       <span class="status-label">
@@ -975,22 +975,22 @@ function renderStatusItem(label, value, tooltip='') {
   `;
 }
 function formatValue(val) {
-  if(Array.isArray(val)){
+  if (Array.isArray(val)) {
     return val.map(v => `<span class="array-value">${v}</span>`).join('');
   }
-  if(typeof val==='object' && val!==null){
-    return Object.entries(val).map(([k,v]) => `${k}: ${v}`).join('<br>');
+  if (typeof val === 'object' && val !== null) {
+    return Object.entries(val).map(([k, v]) => `${k}: ${v}`).join('<br>');
   }
-  if(typeof val==='boolean'){
-    return val?'✓ Enabled':'✗ Disabled';
+  if (typeof val === 'boolean') {
+    return val ? '✓ Enabled' : '✗ Disabled';
   }
   return val;
 }
 function renderViewFields(section, values) {
-  if(typeof values !== 'object' || values === null) {
+  if (typeof values !== 'object' || values === null) {
     return renderStatusItem(section, values);
   }
-  if(Array.isArray(values)) {
+  if (Array.isArray(values)) {
     return `
       <div class="status-item">
         <span class="status-label">
@@ -1006,7 +1006,7 @@ function renderViewFields(section, values) {
     `;
   }
   const subFields = Object.entries(values).map(([k, v]) => {
-    if(typeof v === 'object' && v!==null) {
+    if (typeof v === 'object' && v !== null) {
       return `
         <div class="nested-section">
           <h5 class="nested-title">${k}</h5>
@@ -1032,8 +1032,8 @@ function renderViewFields(section, values) {
     </div>
   `;
 }
-function renderEditFields(section, values){
-  if(typeof values!=='object' || values===null){
+function renderEditFields(section, values) {
+  if (typeof values !== 'object' || values === null) {
     return `
       <div class="edit-field">
         <label>${section}</label>
@@ -1041,12 +1041,12 @@ function renderEditFields(section, values){
       </div>
     `;
   }
-  if(Array.isArray(values)){
+  if (Array.isArray(values)) {
     return `
       <div class="edit-field">
         <label>${section}</label>
         <div>
-          ${values.map((val,idx) => `
+          ${values.map((val, idx) => `
             <div style="margin-bottom:4px; display:flex; gap:8px; align-items:center;">
               <input type="text" value="${val}" onchange="updateConfigValue('${section}', ${idx}, this.value)">
               <button style="background: var(--error-color); color:#fff;"
@@ -1060,7 +1060,7 @@ function renderEditFields(section, values){
     `;
   }
   return Object.entries(values).map(([key, val]) => {
-    if(typeof val==='object' && val!==null){
+    if (typeof val === 'object' && val !== null) {
       return `
         <div class="edit-field">
           <label>${key}</label>
@@ -1070,18 +1070,18 @@ function renderEditFields(section, values){
         </div>
       `;
     }
-    if(typeof val==='boolean'){
+    if (typeof val === 'boolean') {
       return `
         <div class="edit-field">
           <label>${key}</label>
           <select onchange="updateConfigValue('${section}', '${key}', (this.value==='true'))">
-            <option value="true" ${val?'selected':''}>Enabled</option>
-            <option value="false" ${!val?'selected':''}>Disabled</option>
+            <option value="true" ${val ? 'selected' : ''}>Enabled</option>
+            <option value="false" ${!val ? 'selected' : ''}>Disabled</option>
           </select>
         </div>
       `;
     }
-    if(typeof val==='number'){
+    if (typeof val === 'number') {
       return `
         <div class="edit-field">
           <label>${key}</label>
@@ -1105,17 +1105,17 @@ function renderEditFields(section, values){
 async function refreshApiKeyStatus() {
   try {
     const res = await sendCommand('get_api_key_status');
-    if(!res.success) throw new Error(res.error || 'Failed to get API key status');
+    if (!res.success) throw new Error(res.error || 'Failed to get API key status');
     const container = document.getElementById('apiKeyStatus');
-    if(res.skills) {
+    if (res.skills) {
       container.innerHTML = Object.entries(res.skills).map(([skill, info]) => `
         <div class="dashboard-card">
-          <h4>${info.display_name||skill}</h4>
+          <h4>${info.display_name || skill}</h4>
           <div>
-            ${Object.entries(info.required_keys||{}).map(([keyName,isConfigured]) => `
+            ${Object.entries(info.required_keys || {}).map(([keyName, isConfigured]) => `
               <div class="status-item" style="justify-content:space-between;">
                 <span class="status-label">${keyName}</span>
-                <span class="status-value ${isConfigured?'true':'false'}">
+                <span class="status-value ${isConfigured ? 'true' : 'false'}">
                   ${isConfigured ? '✓ Configured' : 'Not Configured'}
                 </span>
                 ${!isConfigured ? `
@@ -1129,39 +1129,39 @@ async function refreshApiKeyStatus() {
     } else {
       container.innerHTML = '<p>No skills found for API key management.</p>';
     }
-  } catch(e) {
+  } catch (e) {
     console.error('Error refreshing API key status:', e);
   }
 }
-function handleConfigureKey(skillName, keyName){
+function handleConfigureKey(skillName, keyName) {
   currentApiKeySetup = { skillName, keyName };
   const modal = document.getElementById('apiKeyModal');
   document.getElementById('apiKeyModalMessage').textContent =
     `Please provide the API key for ${keyName} (${skillName})`;
   document.getElementById('apiKeyInput').value = '';
-  modal.style.display='block';
+  modal.style.display = 'block';
 }
-function closeApiKeyModal(){
-  document.getElementById('apiKeyModal').style.display='none';
+function closeApiKeyModal() {
+  document.getElementById('apiKeyModal').style.display = 'none';
   currentApiKeySetup = null;
 }
-async function submitApiKey(){
-  if(!currentApiKeySetup) return;
+async function submitApiKey() {
+  if (!currentApiKeySetup) return;
   const apiKey = document.getElementById('apiKeyInput').value.trim();
-  if(!apiKey) {
+  if (!apiKey) {
     alert('Please provide an API key.');
     return;
   }
   try {
-    const res = await sendCommand('configure_api_key',{
+    const res = await sendCommand('configure_api_key', {
       skill_name: currentApiKeySetup.skillName,
       key_name: currentApiKeySetup.keyName,
       api_key: apiKey
     });
-    if(!res.success) throw new Error(res.message || 'Failed to configure API key');
+    if (!res.success) throw new Error(res.message || 'Failed to configure API key');
     closeApiKeyModal();
     refreshApiKeyStatus();
-  } catch(e){
+  } catch (e) {
     console.error('Failed to configure API key:', e);
     alert('Failed: ' + e.message);
   }
@@ -1173,19 +1173,21 @@ async function submitApiKey(){
 async function refreshComposioStatus() {
   try {
     const res = await sendCommand('get_composio_integrations');
-    if(!res.success) throw new Error(res.error||'Failed to get Composio integrations');
+    if (!res.success) throw new Error(res.error || 'Failed to get Composio integrations');
     const container = document.getElementById('composioIntegrations');
-    if(res.composio_integrations) {
+    if (res.composio_integrations) {
       container.innerHTML = res.composio_integrations.map(integration => `
-        <div class="dashboard-card" data-display-name="${integration.display_name||integration.name}">
-          <h4>${integration.display_name||integration.name}</h4>
+        <div class="dashboard-card" data-display-name="${integration.display_name || integration.name}">
+          <h4>${integration.display_name || integration.name}</h4>
           <div class="status-item" style="justify-content:space-between;">
             <span class="key-name">Connection Status</span>
-            <span class="status-value ${integration.connected?'true':'false'}">
+            <span class="status-value ${integration.connected ? 'true' : 'false'}">
               ${integration.connected ? '✓ Connected' : 'Not Connected'}
             </span>
             ${!integration.connected ? `
-              <button class="configure-key-btn" onclick="initiateOAuth('${integration.name}')">Connect</button>
+              <div class="connect-buttons" data-app="${integration.name}">
+                <button class="btn secondary" onclick="checkAuthMethods('${integration.name}')">Connect Account</button>
+              </div>
             ` : ''}
           </div>
         </div>
@@ -1194,7 +1196,7 @@ async function refreshComposioStatus() {
       container.innerHTML = '<p>No composio integrations found</p>';
     }
     filterComposioIntegrations();
-  } catch(e){
+  } catch (e) {
     console.error('Error refreshing Composio status:', e);
     alert('Error: ' + e.message);
   }
@@ -1213,7 +1215,45 @@ function filterComposioIntegrations() {
   });
 }
 
-async function initiateOAuth(appName) {
+async function checkAuthMethods(appName) {
+  try {
+    const authRes = await sendCommand('get_auth_schemes', { app_name: appName });
+    if (!authRes.success) {
+      throw new Error(authRes.error || 'Failed to get auth schemes');
+    }
+
+    const authModes = authRes.auth_modes || [];
+    const buttonContainer = document.querySelector(`[data-app="${appName}"]`);
+    
+    if (!buttonContainer) return;
+
+    let buttonsHtml = '<div class="auth-methods">';
+    
+    if (authModes.includes('OAUTH2')) {
+      buttonsHtml += `
+        <button class="btn primary" onclick="startOAuthFlow('${appName}')">
+          Connect with OAuth
+        </button>
+      `;
+    }
+    
+    if (authModes.includes('API_KEY')) {
+      buttonsHtml += `
+        <button class="btn secondary" onclick="startApiKeyFlow('${appName}')">
+          Connect with API Key
+        </button>
+      `;
+    }
+    
+    buttonsHtml += '</div>';
+    buttonContainer.innerHTML = buttonsHtml;
+  } catch (e) {
+    console.error('Failed to get auth methods:', e);
+    alert(e.message);
+  }
+}
+
+async function startOAuthFlow(appName) {
   try {
     const baseUrl = window.location.origin;
     const res = await sendCommand('initiate_oauth', {
@@ -1230,23 +1270,190 @@ async function initiateOAuth(appName) {
       throw new Error('No redirect URL provided');
     }
   } catch (e) {
-    console.error('Failed to initiate OAuth:', e);
+    console.error('Failed to start OAuth flow:', e);
     alert(e.message);
   }
 }
 
-// Example test code for composio actions
+async function startApiKeyFlow(appName) {
+  try {
+    const authRes = await sendCommand('get_auth_schemes', { app_name: appName });
+    if (!authRes.success) {
+      throw new Error(authRes.error || 'Failed to get auth schemes');
+    }
+
+    showApiKeyForm(appName, authRes.api_key_details);
+  } catch (e) {
+    console.error('Failed to start API key flow:', e);
+    alert(e.message);
+  }
+}
+
+function showApiKeyForm(appName, keyDetails) {
+  const modal = document.getElementById('apiKeyModal');
+  const messageEl = document.getElementById('apiKeyModalMessage');
+
+  modal.dataset.appName = appName;
+
+  // Create form with all required fields
+  const fields = keyDetails?.fields || [];
+  messageEl.innerHTML = `
+    <div class="api-key-details">
+      <h4>${appName} API Key Setup</h4>
+      <div id="apiKeyFields">
+        ${fields.map(field => `
+          <div class="field-group" style="margin-bottom: 15px;">
+            <label for="field_${field.name}">${field.display_name}${field.required ? ' *' : ''}</label>
+            <input type="text" 
+                   id="field_${field.name}" 
+                   class="styled-input" 
+                   placeholder="${field.display_name}"
+                   data-field-name="${field.name}"
+                   data-required="${field.required}">
+            <p class="field-description">${field.description || ''}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  const validationDiv = document.createElement('div');
+  validationDiv.id = 'apiKeyValidation';
+  validationDiv.className = 'validation-message';
+  messageEl.appendChild(validationDiv);
+
+  modal.style.display = 'block';
+
+  window.submitApiKey = async function () {
+    const validationDiv = document.getElementById('apiKeyValidation');
+    const fields = document.querySelectorAll('#apiKeyFields input');
+    
+    const values = {};
+    
+    for (const field of fields) {
+      const value = field.value.trim();
+      const fieldName = field.dataset.fieldName;
+      const required = field.dataset.required === 'true';
+      
+      if (required && !value) {
+        validationDiv.textContent = `${field.placeholder} is required`;
+        validationDiv.className = 'validation-message error';
+        return;
+      }
+      
+      if (value) { 
+        values[fieldName] = value;
+      }
+    }
+
+    try {
+      const submitBtn = document.querySelector('#apiKeyModal .primary');
+      submitBtn.textContent = 'Connecting...';
+      submitBtn.disabled = true;
+
+      console.log('Connecting with API key params:', values);
+
+      const res = await sendCommand('initiate_api_key_connection', {
+        app_name: appName,
+        connection_params: values
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || res.message || 'Failed to connect with API key');
+      }
+
+      validationDiv.textContent = 'Connection successful!';
+      validationDiv.className = 'validation-message success';
+
+      setTimeout(() => {
+        closeApiKeyModal();
+        refreshComposioStatus();
+      }, 1500);
+
+    } catch (e) {
+      console.error('Failed to connect with API key:', e);
+      validationDiv.textContent = e.message;
+      validationDiv.className = 'validation-message error';
+
+      const submitBtn = document.querySelector('#apiKeyModal .primary');
+      submitBtn.textContent = 'Try Again';
+      submitBtn.disabled = false;
+    }
+  };
+}
+
+const style = document.createElement('style');
+style.textContent = `
+  .api-key-details {
+    margin-bottom: 20px;
+  }
+  .api-key-details h4 {
+    margin: 0 0 10px 0;
+    color: var(--primary-color);
+  }
+  .api-key-details .description {
+    margin: 0 0 15px 0;
+    color: var(--text-secondary);
+  }
+  .field-group {
+    margin-bottom: 15px;
+  }
+  .field-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-primary);
+  }
+  .field-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+  }
+  .field-description {
+    margin: 5px 0 0 0;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+  }
+  .validation-message {
+    margin-top: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  .validation-message.error {
+    background: var(--error-bg);
+    color: var(--error-color);
+  }
+  .validation-message.warning {
+    background: var(--warning-bg);
+    color: var(--warning-color);
+  }
+  .validation-message.success {
+    background: var(--success-bg);
+    color: var(--success-color);
+  }
+  .auth-methods {
+    display: flex;
+    gap: 8px;
+  }
+  .auth-methods button {
+    white-space: nowrap;
+  }
+`;
+document.head.appendChild(style);
+
 async function testGetActionsForTwitter() {
   try {
-    const res = await sendCommand('get_composio_app_actions', { app_name:'TWITTER' });
+    const res = await sendCommand('get_composio_app_actions', { app_name: 'TWITTER' });
     console.log("TWITTER actions =>", res);
     alert(JSON.stringify(res, null, 2));
-  } catch(e) {
+  } catch (e) {
     console.error("Failed to get actions for Twitter", e);
   }
 }
 
-// Expose certain global functions for debugging
 window.initiateOAuth = initiateOAuth;
 window.closeApiKeyModal = closeApiKeyModal;
 window.submitApiKey = submitApiKey;
@@ -1280,18 +1487,15 @@ function displayAllSkills(skills) {
   let html = '';
 
   skills.forEach(skill => {
-    // 1) Log to console
     console.log('[displayAllSkills] skill object =>', skill);
 
     const skillName = skill.skill_name || '(no skill_name)';
     const enabled = skill.enabled ? '✓' : '✗';
     const metaObj = skill.metadata || {};
 
-    // For convenience, let's parse out some typical fields
     const composioApp = metaObj.composio_app || '(none)';
     const composioAction = metaObj.composio_action || '(none)';
 
-    // 2) Insert more detail in the HTML
     html += `
       <div class="status-item" style="flex-direction: column; align-items: flex-start;">
         <span style="font-weight: bold; margin-bottom: 4px;">${skillName}</span>
@@ -1304,13 +1508,12 @@ function displayAllSkills(skills) {
           <p style="margin:2px 0;"><strong>composio_action:</strong> ${composioAction}</p>
 
           ${
-            // 3) Print entire `metadata` object in a <pre> block
-            metaObj
-              ? `<pre style="background: var(--card-bg); padding: 4px; border-radius: 4px; margin: 4px 0;">
+      metaObj
+        ? `<pre style="background: var(--card-bg); padding: 4px; border-radius: 4px; margin: 4px 0;">
                    ${JSON.stringify(metaObj, null, 2)}
                  </pre>`
-              : ''
-          }
+        : ''
+      }
         </div>
       </div>
     `;

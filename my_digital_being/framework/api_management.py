@@ -102,5 +102,13 @@ class APIManager:
         """
         return await self._composio_manager.list_actions_for_app(app_name)
 
+    async def get_auth_schemes(self, app_name: str) -> Dict[str, Any]:
+        """Get available authentication schemes for an app."""
+        return await self._composio_manager.get_auth_schemes(app_name)
+
+    async def initiate_api_key_connection(self, app_name: str, api_key: str) -> Dict[str, Any]:
+        """Initiate a connection using API key authentication."""
+        return await self._composio_manager.initiate_api_key_connection(app_name, api_key)
+
 # Global
 api_manager = APIManager()
