@@ -2,9 +2,9 @@
 <img src="media/pippin.jpg" alt="Alt text" width="300" height="200" >
 
 
-# Pippin, Autonomous Being Framework
+# Pippin, The Digital Being Framework for Autonomous Agents
 
-Welcome to Pippin — a flexible, open-source Autonomous Being Framework to create a digital AI “being” that:
+Welcome to Pippin — a flexible, open-source framework to create a digital “being” that:
 
 - Learns about your goals/objectives and your character’s persona.
 - Connects to various tools or APIs (via API keys or OAuth flows through Composio) to perform tasks.
@@ -96,7 +96,7 @@ You can choose to run everything from your terminal or via a web-based UI. Both 
 
 - Python 3.9+ recommended.
 - A GitHub account (to fork).
-- A Composio developer key (optional but recommended) if you want to do OAuth-based skill connections.
+- A [Composio](https://composio.dev/) developer key (optional but recommended) if you want to do OAuth-based skill connections.
 
 ---
 
@@ -150,8 +150,8 @@ Fork this repo on GitHub.
 Clone your fork:
 
 ```bash
-git clone https://github.com/<your-username>/autonomous-being-framework.git
-cd autonomous-being-framework
+git clone https://github.com/<your-username>/pippin-draft.git
+cd pippin-draft
 ```
 
 ### 2. Install Dependencies
@@ -567,4 +567,4 @@ This project is licensed under the MIT License. See the LICENSE file.
 
 ---
 
-That’s it! We hope you enjoy building with the Autonomous Being Framework. Whether you want your AI to brainstorm content, spin up tokens on Solana, or implement an entirely new skill from scratch, we’ve got you covered. If you have any questions or suggestions, please reach out or open an issue—happy hacking!
+That’s it! We hope you enjoy building with the Pippin Framework. Whether you want your AI to brainstorm content, spin up tokens on Solana, or implement an entirely new skill from scratch, we’ve got you covered. If you have any questions or suggestions, please reach out or open an issue—happy hacking!
