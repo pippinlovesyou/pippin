@@ -8,11 +8,12 @@ from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="post_recent_memories_tweet",
     energy_cost=0.4,
     cooldown=10000,  # e.g. ~2.7 hours for testing (adjust as needed)
-    required_skills=['twitter_posting']
+    required_skills=["twitter_posting"],
 )
 class PostRecentMemoriesTweetActivity(ActivityBase):
     """
@@ -31,7 +32,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         # Activity types to ignore in memory results
         self.ignored_activity_types = [
             "PostRecentMemoriesTweetActivity",  # ignore itself
-            "PostTweetActivity"
+            "PostTweetActivity",
         ]
 
         # How many recent memory entries to consider
@@ -43,7 +44,9 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
 
             # 1) Initialize chat skill
             if not await chat_skill.initialize():
-                return ActivityResult(success=False, error="Failed to initialize chat skill")
+                return ActivityResult(
+                    success=False, error="Failed to initialize chat skill"
+                )
 
             # 2) Load personality + objectives from character config
             character_config = self._get_character_config(shared_data)
@@ -53,12 +56,13 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
 
             # 3) Fetch recent memories, ignoring certain activity types
             recent_memories = self._get_recent_memories(
-                shared_data,
-                limit=self.num_activities_to_fetch
+                shared_data, limit=self.num_activities_to_fetch
             )
             if not recent_memories:
                 logger.info("No relevant memories found to tweet about.")
-                return ActivityResult(success=True, data={"message": "No recent memories to share."})
+                return ActivityResult(
+                    success=True, data={"message": "No recent memories to share."}
+                )
 
             # 4) Find which memories we used last time (to avoid repeats)
             used_memories_last_time = self._get_memories_used_last_time(shared_data)
@@ -66,20 +70,21 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
 
             # Filter out any overlap
             new_memories = [
-                m for m in recent_memories
-                if m not in used_memories_last_time
+                m for m in recent_memories if m not in used_memories_last_time
             ]
 
             # If all are duplicates, we skip tweeting
             if not new_memories:
                 logger.info("All recent memories overlap with last time.")
-                return ActivityResult(success=True, data={"message": "No new memories to tweet."})
+                return ActivityResult(
+                    success=True, data={"message": "No new memories to tweet."}
+                )
 
             # 5) Build prompt referencing personality + objectives + the final set of memories
             prompt_text = self._build_chat_prompt(
                 personality=personality_data,
                 objectives=objectives_data,
-                new_memories=new_memories
+                new_memories=new_memories,
             )
 
             # 6) Use chat skill to generate the tweet text
@@ -89,7 +94,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
                     "You are an AI that composes tweets with the given personality and objectives. "
                     "Tweet must be under 280 chars."
                 ),
-                max_tokens=200
+                max_tokens=200,
             )
             if not chat_response["success"]:
                 return ActivityResult(success=False, error=chat_response["error"])
@@ -101,29 +106,37 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
             # 7) Post to Twitter via Composio
             post_result = self._post_tweet_via_composio(tweet_text)
             if not post_result["success"]:
-                error_msg = post_result.get("error", "Unknown error posting tweet via Composio")
+                error_msg = post_result.get(
+                    "error", "Unknown error posting tweet via Composio"
+                )
                 logger.error(f"Tweet posting failed: {error_msg}")
                 return ActivityResult(success=False, error=error_msg)
 
             tweet_id = post_result.get("tweet_id")
-            tweet_link = f"https://twitter.com/{self.twitter_username}/status/{tweet_id}" if tweet_id else None
+            tweet_link = (
+                f"https://twitter.com/{self.twitter_username}/status/{tweet_id}"
+                if tweet_id
+                else None
+            )
 
             # 8) Return success, storing the new memories in "data" so we can skip them next time
-            logger.info(f"Successfully posted tweet about recent memories: {tweet_text[:50]}...")
+            logger.info(
+                f"Successfully posted tweet about recent memories: {tweet_text[:50]}..."
+            )
             return ActivityResult(
                 success=True,
                 data={
                     "tweet_id": tweet_id,
                     "content": tweet_text,
-                    "recent_memories_used": new_memories  # store these for next run
+                    "recent_memories_used": new_memories,  # store these for next run
                 },
                 metadata={
                     "length": len(tweet_text),
                     "tweet_link": tweet_link,
                     "prompt_used": prompt_text,
                     "model": chat_response["data"].get("model"),
-                    "finish_reason": chat_response["data"].get("finish_reason")
-                }
+                    "finish_reason": chat_response["data"].get("finish_reason"),
+                },
             )
 
         except Exception as e:
@@ -139,6 +152,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         memory_obj: Memory = system_data.get("memory_ref")
         if not memory_obj:
             from framework.main import DigitalBeing
+
             being = DigitalBeing()
             being.initialize()
             memory_obj = being.memory
@@ -146,8 +160,9 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         # Search in the last ~10 runs for this activity
         recent_activities = memory_obj.get_recent_activities(limit=10, offset=0)
         for act in recent_activities:
-            if (act.get("activity_type") == "PostRecentMemoriesTweetActivity"
-                    and act.get("success")):
+            if act.get(
+                "activity_type"
+            ) == "PostRecentMemoriesTweetActivity" and act.get("success"):
                 used = act.get("data", {}).get("recent_memories_used", [])
                 if used:
                     return used
@@ -164,6 +179,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
 
         # fallback
         from framework.main import DigitalBeing
+
         being = DigitalBeing()
         being.initialize()
         return being.configs.get("character_config", {})
@@ -179,6 +195,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
 
         if not memory_obj:
             from framework.main import DigitalBeing
+
             being = DigitalBeing()
             being.initialize()
             memory_obj = being.memory
@@ -203,7 +220,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         self,
         personality: Dict[str, Any],
         objectives: Dict[str, Any],
-        new_memories: List[str]
+        new_memories: List[str],
     ) -> str:
         """
         Construct the user prompt: combine personality + objectives + the new memory summaries,
@@ -217,7 +234,11 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         objective_lines = []
         for k, v in objectives.items():
             objective_lines.append(f"{k}: {v}")
-        objectives_str = "\n".join(objective_lines) if objective_lines else "(No objectives specified)"
+        objectives_str = (
+            "\n".join(objective_lines)
+            if objective_lines
+            else "(No objectives specified)"
+        )
 
         # Memories
         if new_memories:
@@ -244,12 +265,15 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         """
         try:
             from framework.composio_integration import composio_manager
-            logger.info(f"Posting tweet via Composio action='{self.composio_action}', text='{tweet_text[:50]}...'")
+
+            logger.info(
+                f"Posting tweet via Composio action='{self.composio_action}', text='{tweet_text[:50]}...'"
+            )
 
             response = composio_manager._toolset.execute_action(
                 action=self.composio_action,
                 params={"text": tweet_text},
-                entity_id="MyDigitalBeing"
+                entity_id="MyDigitalBeing",
             )
 
             success_val = response.get("success", response.get("successfull"))
@@ -261,7 +285,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
             else:
                 return {
                     "success": False,
-                    "error": response.get("error", "Unknown or missing success key")
+                    "error": response.get("error", "Unknown or missing success key"),
                 }
 
         except Exception as e:

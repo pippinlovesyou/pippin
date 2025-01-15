@@ -11,11 +11,12 @@ from framework.main import DigitalBeing
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="SuggestNewActivities",
     energy_cost=0.4,
     cooldown=259200,  # 3 days
-    required_skills=["openai_chat"]
+    required_skills=["openai_chat"],
 )
 class SuggestNewActivities(ActivityBase):
     """
@@ -40,8 +41,7 @@ If relevant, mention which skill(s) would be used for each suggestion.
             # 1) Initialize the chat skill
             if not await chat_skill.initialize():
                 return ActivityResult(
-                    success=False,
-                    error="Failed to initialize openai_chat skill"
+                    success=False, error="Failed to initialize openai_chat skill"
                 )
 
             # 2) Gather the being + config
@@ -64,9 +64,9 @@ If relevant, mention which skill(s) would be used for each suggestion.
                     # We'll build a short desc
                     desc = f"Skill: {skill_name}, enabled={skill_info.get('enabled')}"
                     # Add required keys, etc. if relevant
-                    req_keys = skill_info.get('required_api_keys', [])
+                    req_keys = skill_info.get("required_api_keys", [])
                     desc += f", required_api_keys={req_keys}"
-                    meta = skill_info.get('metadata', {})
+                    meta = skill_info.get("metadata", {})
                     if meta:
                         desc += f", metadata={meta}"
                     manual_skill_list.append(desc)
@@ -102,9 +102,7 @@ If relevant, mention which skill(s) would be used for each suggestion.
 
             # 6) LLM call
             response = await chat_skill.get_chat_completion(
-                prompt=prompt_text,
-                system_prompt=self.system_prompt,
-                max_tokens=300
+                prompt=prompt_text, system_prompt=self.system_prompt, max_tokens=300
             )
             if not response["success"]:
                 return ActivityResult(success=False, error=response["error"])
@@ -116,8 +114,8 @@ If relevant, mention which skill(s) would be used for each suggestion.
                 data={"suggestions": suggestions},
                 metadata={
                     "model": response["data"]["model"],
-                    "finish_reason": response["data"]["finish_reason"]
-                }
+                    "finish_reason": response["data"]["finish_reason"],
+                },
             )
 
         except Exception as e:

@@ -9,4 +9,4 @@ from .framework.main import DigitalBeing
 from .server import DigitalBeingServer
 
 __version__ = "0.1.0"
-__all__ = ['DigitalBeing', 'DigitalBeingServer']
+__all__ = ["DigitalBeing", "DigitalBeingServer"]

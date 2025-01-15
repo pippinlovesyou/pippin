@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+
 class ActivitySelector:
     def __init__(self, constraints: Dict[str, Any], state):
         """
@@ -50,15 +51,18 @@ class ActivitySelector:
         available_activities = self._get_available_activities()
         if not available_activities:
             next_available = self.get_next_available_times()
-            logger.info(f"No activities available at this time. Next available activities: {next_available}")
+            logger.info(
+                f"No activities available at this time. Next available activities: {next_available}"
+            )
             return None
 
         # Step 2: filter out ones that fail "energy" or "activity_requirements"
         suitable_activities = []
         for activity in available_activities:
             activity_name = activity.__class__.__name__
-            if (self._check_energy_requirements(activity) and
-                    self._check_activity_requirements(activity_name)):
+            if self._check_energy_requirements(
+                activity
+            ) and self._check_activity_requirements(activity_name):
                 logger.info(f"Activity {activity_name} is suitable for execution.")
                 suitable_activities.append(activity)
             else:
@@ -70,10 +74,9 @@ class ActivitySelector:
 
         # Step 3: personality-based selection
         # (If you have a "personality" dict in state, else use {}.)
-        personality = self.state.get_current_state().get('personality', {})
+        personality = self.state.get_current_state().get("personality", {})
         selected_activity = self._select_based_on_personality(
-            suitable_activities,
-            personality
+            suitable_activities, personality
         )
 
         if selected_activity:
@@ -99,7 +102,7 @@ class ActivitySelector:
             base_name = activity_class.__name__
 
             # Pull cooldown from the class (decorator)
-            cooldown = getattr(activity_class, 'cooldown', 0)
+            cooldown = getattr(activity_class, "cooldown", 0)
             last_time = self.last_activity_times.get(base_name)
 
             if last_time:
@@ -107,23 +110,27 @@ class ActivitySelector:
                 time_remaining = max(0, cooldown - time_since_last)
                 next_time = current_time + timedelta(seconds=time_remaining)
 
-                next_available.append({
-                    'activity': base_name,
-                    'available_in_seconds': time_remaining,
-                    'next_available_at': next_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'cooldown_period': cooldown
-                })
+                next_available.append(
+                    {
+                        "activity": base_name,
+                        "available_in_seconds": time_remaining,
+                        "next_available_at": next_time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "cooldown_period": cooldown,
+                    }
+                )
             else:
                 # never run before => it's available now
-                next_available.append({
-                    'activity': base_name,
-                    'available_in_seconds': 0,
-                    'next_available_at': 'Now',
-                    'cooldown_period': cooldown
-                })
+                next_available.append(
+                    {
+                        "activity": base_name,
+                        "available_in_seconds": 0,
+                        "next_available_at": "Now",
+                        "cooldown_period": cooldown,
+                    }
+                )
 
         # sort by soonest availability
-        return sorted(next_available, key=lambda x: x['available_in_seconds'])
+        return sorted(next_available, key=lambda x: x["available_in_seconds"])
 
     def _get_available_activities(self) -> List[Any]:
         """
@@ -137,7 +144,7 @@ class ActivitySelector:
         current_time = datetime.now()
 
         all_activities = self.activity_loader.get_all_activities()
-        activities_config = self.constraints.get('activities_config', {})
+        activities_config = self.constraints.get("activities_config", {})
 
         for module_name, activity_class in all_activities.items():
             base_name = activity_class.__name__
@@ -149,12 +156,14 @@ class ActivitySelector:
                     continue
 
             # 2) check if it's on cooldown
-            cooldown = getattr(activity_class, 'cooldown', 0)
+            cooldown = getattr(activity_class, "cooldown", 0)
             last_time = self.last_activity_times.get(base_name)
             if last_time:
                 time_since_last = (current_time - last_time).total_seconds()
                 if time_since_last < cooldown:
-                    logger.info(f"{base_name} still on cooldown for {cooldown - time_since_last:.1f}s more.")
+                    logger.info(
+                        f"{base_name} still on cooldown for {cooldown - time_since_last:.1f}s more."
+                    )
                     continue
 
             # If we get here, the activity is enabled & not on cooldown
@@ -163,7 +172,9 @@ class ActivitySelector:
                 logger.info(f"Created instance of {base_name} successfully.")
                 available.append(instance)
             except Exception as e:
-                logger.error(f"Failed to create instance of {base_name}: {e}", exc_info=True)
+                logger.error(
+                    f"Failed to create instance of {base_name}: {e}", exc_info=True
+                )
 
         return available
 
@@ -172,7 +183,9 @@ class ActivitySelector:
         Check constraints['activity_requirements'][activity_name] if you need logic
         for required skills or memory usage. Currently returns True to accept all.
         """
-        requirements = self.constraints.get('activity_requirements', {}).get(activity_name, {})
+        requirements = self.constraints.get("activity_requirements", {}).get(
+            activity_name, {}
+        )
         logger.debug(f"Checking requirements for {activity_name}: {requirements}")
         return True
 
@@ -180,16 +193,20 @@ class ActivitySelector:
         """
         Check if the being has enough energy for the activity (activity.energy_cost).
         """
-        current_energy = self.state.get_current_state().get('energy', 1.0)
-        required_energy = getattr(activity, 'energy_cost', 0.2)
+        current_energy = self.state.get_current_state().get("energy", 1.0)
+        required_energy = getattr(activity, "energy_cost", 0.2)
         has_energy = current_energy >= required_energy
 
         if not has_energy:
-            logger.info(f"Insufficient energy for {activity.__class__.__name__} "
-                        f"(required={required_energy}, current={current_energy}).")
+            logger.info(
+                f"Insufficient energy for {activity.__class__.__name__} "
+                f"(required={required_energy}, current={current_energy})."
+            )
         return has_energy
 
-    def _select_based_on_personality(self, activities: List[Any], personality: Dict[str, float]) -> Optional[Any]:
+    def _select_based_on_personality(
+        self, activities: List[Any], personality: Dict[str, float]
+    ) -> Optional[Any]:
         """
         Given a list of candidate activity instances, choose one with a weighted random approach.
         """
@@ -199,10 +216,14 @@ class ActivitySelector:
         weights = []
         for activity in activities:
             weight = 1.0
-            if hasattr(activity, 'creativity_factor'):
-                weight *= (1 + personality.get('creativity', 0.5) * activity.creativity_factor)
-            if hasattr(activity, 'social_factor'):
-                weight *= (1 + personality.get('friendliness', 0.5) * activity.social_factor)
+            if hasattr(activity, "creativity_factor"):
+                weight *= (
+                    1 + personality.get("creativity", 0.5) * activity.creativity_factor
+                )
+            if hasattr(activity, "social_factor"):
+                weight *= (
+                    1 + personality.get("friendliness", 0.5) * activity.social_factor
+                )
             weights.append(weight)
 
         chosen = random.choices(activities, weights=weights, k=1)[0]

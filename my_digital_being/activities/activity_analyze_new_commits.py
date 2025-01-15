@@ -9,11 +9,12 @@ from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="analyze_new_commits",
     energy_cost=0.4,
     cooldown=1000,  # e.g. 100 seconds for testing; update as needed (e.g. 86400 for daily)
-    required_skills=['github_repo_commits']
+    required_skills=["github_repo_commits"],
 )
 class AnalyzeNewCommitsActivity(ActivityBase):
     """
@@ -26,8 +27,8 @@ class AnalyzeNewCommitsActivity(ActivityBase):
     def __init__(self):
         super().__init__()
         self.composio_action = "GITHUB_LIST_COMMITS"
-        self.github_owner = "yoheinakajima" #example githubt username
-        self.github_repo = "pippin" #example repo
+        self.github_owner = "yoheinakajima"  # example githubt username
+        self.github_repo = "pippin"  # example repo
         self.github_branch = "main"
         self.lookback_hours = 144  # hours to look back
 
@@ -37,7 +38,9 @@ class AnalyzeNewCommitsActivity(ActivityBase):
 
             # 1) Initialize the chat skill
             if not await chat_skill.initialize():
-                return ActivityResult(success=False, error="Failed to initialize chat skill")
+                return ActivityResult(
+                    success=False, error="Failed to initialize chat skill"
+                )
 
             # 2) Retrieve memory reference and known commit SHAs (already analyzed)
             memory_obj = self._get_memory(shared_data)
@@ -52,19 +55,25 @@ class AnalyzeNewCommitsActivity(ActivityBase):
             commits_data = commits_response.get("data", {}).get("details", [])
             if not commits_data:
                 logger.info("No commits returned from GitHub (empty 'details').")
-                return ActivityResult(success=True, data={"message": "No commits found."})
+                return ActivityResult(
+                    success=True, data={"message": "No commits found."}
+                )
 
             # 4) Filter: only commits from the last X hours
             now_utc = datetime.utcnow()
             fresh_commits = []
             for c in commits_data:
                 sha = c.get("sha")
-                commit_date_str = c.get("commit", {}).get("author", {}).get("date")  # e.g. 2025-01-07T08:16:00Z
+                commit_date_str = (
+                    c.get("commit", {}).get("author", {}).get("date")
+                )  # e.g. 2025-01-07T08:16:00Z
                 if not commit_date_str:
                     continue
 
                 try:
-                    commit_datetime = datetime.strptime(commit_date_str, "%Y-%m-%dT%H:%M:%SZ")
+                    commit_datetime = datetime.strptime(
+                        commit_date_str, "%Y-%m-%dT%H:%M:%SZ"
+                    )
                 except ValueError:
                     logger.warning(f"Could not parse commit date: {commit_date_str}")
                     continue
@@ -72,25 +81,38 @@ class AnalyzeNewCommitsActivity(ActivityBase):
                 if (now_utc - commit_datetime) <= timedelta(hours=self.lookback_hours):
                     fresh_commits.append(c)
                 else:
-                    logger.info(f"Skipping commit {sha} older than {self.lookback_hours} hours")
+                    logger.info(
+                        f"Skipping commit {sha} older than {self.lookback_hours} hours"
+                    )
 
             if not fresh_commits:
-                return ActivityResult(success=True, data={"message": f"No commits in the last {self.lookback_hours} hours."})
+                return ActivityResult(
+                    success=True,
+                    data={
+                        "message": f"No commits in the last {self.lookback_hours} hours."
+                    },
+                )
 
             # 5) Determine which commits are new (not previously analyzed)
-            new_commits = [c for c in fresh_commits if c.get("sha") not in known_commit_shas]
+            new_commits = [
+                c for c in fresh_commits if c.get("sha") not in known_commit_shas
+            ]
             if not new_commits:
                 logger.info("All recent commits were already analyzed.")
-                return ActivityResult(success=True, data={"message": "No new commits to analyze."})
+                return ActivityResult(
+                    success=True, data={"message": "No new commits to analyze."}
+                )
 
             # 6) Build a single chat prompt for all new commits
             prompt_text = self._build_batch_prompt(new_commits)
-            logger.info(f"Sending one chat prompt with {len(new_commits)} new commits...")
+            logger.info(
+                f"Sending one chat prompt with {len(new_commits)} new commits..."
+            )
 
             chat_response = await chat_skill.get_chat_completion(
                 prompt=prompt_text,
                 system_prompt="You are a code review assistant. Summarize and analyze the following commits in detail.",
-                max_tokens=500  # Adjust as needed
+                max_tokens=500,  # Adjust as needed
             )
             if not chat_response["success"]:
                 return ActivityResult(success=False, error=chat_response["error"])
@@ -106,13 +128,13 @@ class AnalyzeNewCommitsActivity(ActivityBase):
                 data={
                     "analysis": combined_analysis,
                     "new_commit_count": len(new_commits),
-                    "commits_analyzed": [c.get("sha") for c in new_commits]
+                    "commits_analyzed": [c.get("sha") for c in new_commits],
                 },
                 metadata={
                     "model": chat_response["data"].get("model"),
                     "finish_reason": chat_response["data"].get("finish_reason"),
-                    "prompt_used": prompt_text
-                }
+                    "prompt_used": prompt_text,
+                },
             )
 
         except Exception as e:
@@ -128,6 +150,7 @@ class AnalyzeNewCommitsActivity(ActivityBase):
 
         if not memory_obj:
             from framework.main import DigitalBeing
+
             being = DigitalBeing()
             being.initialize()
             memory_obj = being.memory
@@ -143,7 +166,9 @@ class AnalyzeNewCommitsActivity(ActivityBase):
         known_shas = set()
         for act in recent_activities:
             # If we see "AnalyzeNewCommitsActivity" with success, parse its data
-            if act.get("activity_type") == "AnalyzeNewCommitsActivity" and act.get("success"):
+            if act.get("activity_type") == "AnalyzeNewCommitsActivity" and act.get(
+                "success"
+            ):
                 # We rely on the final data posted in the ActivityResult
                 # where "commits_analyzed" is a list of commit SHAs or something similar
                 commits_analyzed = act.get("data", {}).get("commits_analyzed", [])
@@ -179,6 +204,7 @@ class AnalyzeNewCommitsActivity(ActivityBase):
         """
         try:
             from framework.composio_integration import composio_manager
+
             logger.info(
                 f"Listing commits from owner='{self.github_owner}', repo='{self.github_repo}', "
                 f"branch='{self.github_branch}' using action='{self.composio_action}'"
@@ -190,7 +216,7 @@ class AnalyzeNewCommitsActivity(ActivityBase):
                     "repo": self.github_repo,
                     "sha": self.github_branch,
                 },
-                entity_id="MyDigitalBeing"
+                entity_id="MyDigitalBeing",
             )
 
             # unify "successfull"/"successful"/"success" -> boolean
@@ -200,7 +226,9 @@ class AnalyzeNewCommitsActivity(ActivityBase):
             else:
                 return {
                     "success": False,
-                    "error": response.get("error", "Unknown or missing success key from Composio")
+                    "error": response.get(
+                        "error", "Unknown or missing success key from Composio"
+                    ),
                 }
 
         except Exception as e:

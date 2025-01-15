@@ -6,29 +6,32 @@ from typing import Dict, Type, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
 def read_activity_code(activity_name: str) -> Optional[str]:
     """
     Reads the .py file from 'activities/' by the given filename (e.g. 'activity_tweet.py').
     Returns its text content or None if file not found.
     """
-    activity_file = Path(__file__).parent.parent / 'activities' / activity_name
+    activity_file = Path(__file__).parent.parent / "activities" / activity_name
     if not activity_file.exists():
         logger.warning(f"read_activity_code: File not found: {activity_file}")
         return None
     return activity_file.read_text()
+
 
 def write_activity_code(activity_name: str, new_code: str) -> bool:
     """
     Writes 'new_code' into the .py file in 'activities/' with the given filename.
     Returns True on success, False on error.
     """
-    activity_file = Path(__file__).parent.parent / 'activities' / activity_name
+    activity_file = Path(__file__).parent.parent / "activities" / activity_name
     try:
-        activity_file.write_text(new_code, encoding='utf-8')
+        activity_file.write_text(new_code, encoding="utf-8")
         return True
     except Exception as e:
         logger.error(f"write_activity_code: Failed to write {activity_file}: {e}")
         return False
+
 
 class ActivityLoader:
     def __init__(self, activities_path: str = None, config: dict = None):
@@ -37,14 +40,14 @@ class ActivityLoader:
         :param config: The main config object from being.configs (used to skip disabled).
         """
         if activities_path is None:
-            activities_path = Path(__file__).parent.parent / 'activities'
+            activities_path = Path(__file__).parent.parent / "activities"
         self.activities_path = Path(activities_path)
 
         # [ADDED] We'll read 'activities_config' from config
         self.activities_config = {}
         if config:
-            self.activities_config = (
-                config.get("activity_constraints", {}).get("activities_config", {})
+            self.activities_config = config.get("activity_constraints", {}).get(
+                "activities_config", {}
             )
 
         self.loaded_activities: Dict[str, Type[Any]] = {}
@@ -63,7 +66,9 @@ class ActivityLoader:
                 file_text = activity_file.read_text()
 
                 # We expect a pattern like: class SomeActivity(ActivityBase):
-                class_match = re.search(r'class\s+(\w+)\(.*ActivityBase.*\):', file_text)
+                class_match = re.search(
+                    r"class\s+(\w+)\(.*ActivityBase.*\):", file_text
+                )
                 if not class_match:
                     logger.error(f"No recognized activity class in {activity_file}")
                     continue
@@ -79,20 +84,28 @@ class ActivityLoader:
                     activity_cfg = self.activities_config[module_name]
 
                 if activity_cfg and (activity_cfg.get("enabled") is False):
-                    logger.info(f"Activity {class_name} is disabled by config, skipping load.")
+                    logger.info(
+                        f"Activity {class_name} is disabled by config, skipping load."
+                    )
                     continue
 
-                spec = importlib.util.spec_from_file_location(module_name, activity_file)
+                spec = importlib.util.spec_from_file_location(
+                    module_name, activity_file
+                )
                 if spec and spec.loader:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
 
                     activity_class = getattr(module, class_name)
                     self.loaded_activities[module_name] = activity_class
-                    logger.info(f"Successfully loaded activity {module_name} -> class {class_name}")
+                    logger.info(
+                        f"Successfully loaded activity {module_name} -> class {class_name}"
+                    )
 
             except Exception as e:
-                logger.error(f"Failed to load activity {activity_file}: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Failed to load activity {activity_file}: {str(e)}", exc_info=True
+                )
 
     def get_activity(self, activity_name: str) -> Optional[Type[Any]]:
         """Get an activity class by module name (e.g. 'activity_tweet')."""

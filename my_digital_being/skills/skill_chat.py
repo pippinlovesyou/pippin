@@ -1,4 +1,5 @@
 """OpenAI Chat Completion skill."""
+
 import os
 import logging
 from typing import Optional, Dict, Any
@@ -6,6 +7,7 @@ from openai import OpenAI, APIError
 from framework.api_management import api_manager
 
 logger = logging.getLogger(__name__)
+
 
 class ChatSkill:
     """Skill for chat completions using OpenAI's API."""
@@ -31,16 +33,19 @@ class ChatSkill:
             response = self.client.chat.completions.create(
                 model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
                 messages=[{"role": "user", "content": "Test"}],
-                max_tokens=1
+                max_tokens=1,
             )
             return bool(response)
         except Exception as e:
             logger.error(f"Failed to initialize chat skill: {e}")
             return False
 
-    async def get_chat_completion(self, prompt: str, 
-                                system_prompt: str = "You are a helpful AI assistant.", 
-                                max_tokens: int = 150) -> Dict[str, Any]:
+    async def get_chat_completion(
+        self,
+        prompt: str,
+        system_prompt: str = "You are a helpful AI assistant.",
+        max_tokens: int = 150,
+    ) -> Dict[str, Any]:
         """
         Get a chat completion response.
 
@@ -56,7 +61,7 @@ class ChatSkill:
             return {
                 "success": False,
                 "error": "Chat skill not initialized",
-                "data": None
+                "data": None,
             }
 
         try:
@@ -64,10 +69,10 @@ class ChatSkill:
                 model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 max_tokens=max_tokens,
-                temperature=0.7
+                temperature=0.7,
             )
 
             return {
@@ -77,23 +82,20 @@ class ChatSkill:
                     "finish_reason": response.choices[0].finish_reason,
                     "model": response.model,
                 },
-                "error": None
+                "error": None,
             }
 
         except APIError as e:
             logger.error(f"OpenAI API error: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "data": None
-            }
+            return {"success": False, "error": str(e), "data": None}
         except Exception as e:
             logger.error(f"Unexpected error in chat completion: {e}")
             return {
                 "success": False,
                 "error": f"Unexpected error: {str(e)}",
-                "data": None
+                "data": None,
             }
+
 
 # Global instance
 chat_skill = ChatSkill()

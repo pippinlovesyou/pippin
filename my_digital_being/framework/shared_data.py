@@ -4,9 +4,10 @@ from threading import Lock
 
 logger = logging.getLogger(__name__)
 
+
 class SharedData:
     """Thread-safe shared data storage for activities and skills."""
-    
+
     def __init__(self):
         self._data: Dict[str, Any] = {}
         self._locks: Dict[str, Lock] = {}
@@ -15,12 +16,7 @@ class SharedData:
     def initialize(self):
         """Initialize shared data storage."""
         with self._global_lock:
-            self._data = {
-                'system': {},
-                'memory': {},
-                'state': {},
-                'temp': {}
-            }
+            self._data = {"system": {}, "memory": {}, "state": {}, "temp": {}}
             for category in self._data:
                 self._locks[category] = Lock()
 

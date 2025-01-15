@@ -16,6 +16,7 @@ TARGETS = [
     "my_digital_being/server.py",
 ]
 
+
 def combine_code():
     with open(OUTPUT_FILE, "w") as output_file:
         for target in TARGETS:
@@ -31,12 +32,14 @@ def combine_code():
                 print(f"Warning: {target} is neither a directory nor a file.")
     print(f"Combined code saved to {OUTPUT_FILE}")
 
+
 def add_file_to_output(filepath, output_file):
     with open(filepath, "r") as f:
         content = f.read()
     relative_path = os.path.relpath(filepath)
     header = f"\n##### {relative_path} #####\n"
     output_file.write(header + content + "\n")
+
 
 if __name__ == "__main__":
     combine_code()

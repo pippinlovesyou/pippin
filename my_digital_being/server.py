@@ -28,6 +28,7 @@ from framework.skill_config import DynamicComposioSkills
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DigitalBeingServer:
     """Server for the Digital Being application."""
 
@@ -72,7 +73,9 @@ class DigitalBeingServer:
                 # Single-step approach for selecting an activity
                 current_activity = self.being.activity_selector.select_next_activity()
                 if current_activity:
-                    logger.info(f"Executing activity: {current_activity.__class__.__name__}")
+                    logger.info(
+                        f"Executing activity: {current_activity.__class__.__name__}"
+                    )
                     result = await self.being.execute_activity(current_activity)
                     if result and result.success:
                         self.being_state["last_activity"] = {
@@ -119,16 +122,17 @@ class DigitalBeingServer:
         logger.info(f"Client connected. Total clients: {len(self.clients)}")
 
         # Send the current state right away
-        await websocket.send(json.dumps({
-            "type": "state_update",
-            "data": self.being_state
-        }))
+        await websocket.send(
+            json.dumps({"type": "state_update", "data": self.being_state})
+        )
 
     async def unregister(self, websocket: WebSocketServerProtocol):
         self.clients.discard(websocket)
         logger.info(f"Client disconnected. Total clients: {len(self.clients)}")
 
-    async def serve_static_file(self, path: str, request_headers: Dict) -> Union[Tuple[http.HTTPStatus, list, bytes], None]:
+    async def serve_static_file(
+        self, path: str, request_headers: Dict
+    ) -> Union[Tuple[http.HTTPStatus, list, bytes], None]:
         try:
             if path == "/ws":
                 return None
@@ -144,38 +148,54 @@ class DigitalBeingServer:
                 request_path = "/index.html"
 
             if request_path == "/ws":
-                if (request_headers.get("Upgrade", "").lower() == "websocket"
-                    and request_headers.get("Connection", "").lower() == "upgrade"):
+                if (
+                    request_headers.get("Upgrade", "").lower() == "websocket"
+                    and request_headers.get("Connection", "").lower() == "upgrade"
+                ):
                     logger.info("Valid WebSocket upgrade request")
                     return None
                 logger.warning("Invalid WebSocket request")
-                return http.HTTPStatus.BAD_REQUEST, [("Content-Type", "text/plain")], b"Invalid WebSocket request"
+                return (
+                    http.HTTPStatus.BAD_REQUEST,
+                    [("Content-Type", "text/plain")],
+                    b"Invalid WebSocket request",
+                )
 
             file_path = self.static_path / request_path.lstrip("/")
             if not file_path.exists() or not file_path.is_file():
                 logger.warning(f"File not found: {file_path}")
-                return http.HTTPStatus.NOT_FOUND, [("Content-Type", "text/plain")], b"404 Not Found"
+                return (
+                    http.HTTPStatus.NOT_FOUND,
+                    [("Content-Type", "text/plain")],
+                    b"404 Not Found",
+                )
 
             content_type, _ = mimetypes.guess_type(str(file_path))
             if not content_type:
                 content_type = "application/octet-stream"
 
             content = file_path.read_bytes()
-            return http.HTTPStatus.OK, [
-                ("Content-Type", content_type),
-                ("Cache-Control", "public, max-age=3600"),
-            ], content
+            return (
+                http.HTTPStatus.OK,
+                [
+                    ("Content-Type", content_type),
+                    ("Cache-Control", "public, max-age=3600"),
+                ],
+                content,
+            )
 
         except Exception as e:
             logger.error(f"Error serving {path}: {e}")
-            return http.HTTPStatus.INTERNAL_SERVER_ERROR, [
-                ("Content-Type", "text/plain")
-            ], b"Internal Server Error"
+            return (
+                http.HTTPStatus.INTERNAL_SERVER_ERROR,
+                [("Content-Type", "text/plain")],
+                b"Internal Server Error",
+            )
 
     async def handle_oauth_http_callback(self, path: str):
         """
         Handle GET /oauth_callback?status=success&connectedAccountId=...&appName=...
-        Then finalize or store connection info, auto-fetch & register app actions, 
+        Then finalize or store connection info, auto-fetch & register app actions,
         and finally redirect to "/".
         """
         from urllib.parse import urlparse, parse_qs
@@ -203,27 +223,43 @@ class DigitalBeingServer:
 
         try:
             if code:
-                finalize_result = await api_manager.composio_manager.handle_oauth_callback(connected_account_id, code)
+                finalize_result = (
+                    await api_manager.composio_manager.handle_oauth_callback(
+                        connected_account_id, code
+                    )
+                )
                 logger.info(f"handle_oauth_callback returned: {finalize_result}")
             else:
                 if app_name:
-                    api_manager.composio_manager.mark_app_connected_without_code(app_name, connected_account_id)
+                    api_manager.composio_manager.mark_app_connected_without_code(
+                        app_name, connected_account_id
+                    )
 
             if app_name:
-                logger.info(f"Auto-fetching actions for newly connected app: {app_name}")
+                logger.info(
+                    f"Auto-fetching actions for newly connected app: {app_name}"
+                )
                 actions_result = await api_manager.list_actions_for_app(app_name)
                 if actions_result.get("success"):
                     actions = actions_result.get("actions", [])
                     if actions:
-                        logger.info(f"Discovered {len(actions)} actions for {app_name}, registering now...")
-                        DynamicComposioSkills.register_composio_actions(app_name, actions)
+                        logger.info(
+                            f"Discovered {len(actions)} actions for {app_name}, registering now..."
+                        )
+                        DynamicComposioSkills.register_composio_actions(
+                            app_name, actions
+                        )
                     else:
                         logger.warning(f"No actions found for {app_name}.")
                 else:
-                    logger.warning(f"Failed to fetch actions for {app_name}: {actions_result.get('error')}")
+                    logger.warning(
+                        f"Failed to fetch actions for {app_name}: {actions_result.get('error')}"
+                    )
 
         except Exception as e:
-            logger.error(f"Error finalizing/fetching actions for {app_name}: {e}", exc_info=True)
+            logger.error(
+                f"Error finalizing/fetching actions for {app_name}: {e}", exc_info=True
+            )
 
         redirect_body = b'<html><head><meta http-equiv="refresh" content="0;URL=\'/\'" /></head><body>Redirecting...</body></html>'
         return (
@@ -257,7 +293,9 @@ class DigitalBeingServer:
         finally:
             await self.unregister(websocket)
 
-    async def process_message(self, websocket: WebSocketServerProtocol, data: Dict[str, Any]):
+    async def process_message(
+        self, websocket: WebSocketServerProtocol, data: Dict[str, Any]
+    ):
         try:
             message_type = data.get("type")
             if not message_type:
@@ -265,27 +303,29 @@ class DigitalBeingServer:
                 return
 
             if message_type == "get_state":
-                await websocket.send(json.dumps({
-                    "type": "state_update",
-                    "data": self.being_state
-                }))
+                await websocket.send(
+                    json.dumps({"type": "state_update", "data": self.being_state})
+                )
             elif message_type == "command":
                 command = data.get("command")
                 if command:
                     resp = await self.handle_command(command, data.get("params", {}))
-                    await websocket.send(json.dumps({
-                        "type": "command_response",
-                        "command": command,
-                        "response": resp
-                    }))
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "command_response",
+                                "command": command,
+                                "response": resp,
+                            }
+                        )
+                    )
         except Exception as e:
             logger.error(f"Error in process_message: {e}")
-            await websocket.send(json.dumps({
-                "type": "error",
-                "message": str(e)
-            }))
+            await websocket.send(json.dumps({"type": "error", "message": str(e)}))
 
-    async def handle_command(self, command: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_command(
+        self, command: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         logger.debug(f"handle_command: {command}, params={params}")
         try:
             if command == "pause":
@@ -308,7 +348,9 @@ class DigitalBeingServer:
                     return {"success": False, "error": "Missing app_name"}
                 redirect_url = f"{base_url}/oauth_callback"
                 try:
-                    result = await api_manager.composio_manager.initiate_oauth_flow(app_name, redirect_url)
+                    result = await api_manager.composio_manager.initiate_oauth_flow(
+                        app_name, redirect_url
+                    )
                     return result
                 except Exception as e:
                     logger.error(f"init_oauth error: {e}")
@@ -316,11 +358,17 @@ class DigitalBeingServer:
 
             elif command == "get_composio_integrations":
                 try:
-                    integrations = await api_manager.composio_manager.list_available_integrations()
+                    integrations = (
+                        await api_manager.composio_manager.list_available_integrations()
+                    )
                     return {"success": True, "composio_integrations": integrations}
                 except Exception as e:
                     logger.error(f"Error get_composio_integrations: {e}")
-                    return {"success": False, "error": str(e), "composio_integrations": []}
+                    return {
+                        "success": False,
+                        "error": str(e),
+                        "composio_integrations": [],
+                    }
 
             elif command == "get_api_key_status":
                 skills_status = await api_manager.get_skill_status()
@@ -333,7 +381,9 @@ class DigitalBeingServer:
                 if not all([skill_name, key_name, api_key_value]):
                     return {"success": False, "message": "Missing required params"}
                 try:
-                    result = await api_manager.set_api_key(skill_name, key_name, api_key_value)
+                    result = await api_manager.set_api_key(
+                        skill_name, key_name, api_key_value
+                    )
                     return result
                 except Exception as e:
                     return {"success": False, "message": str(e)}
@@ -341,7 +391,9 @@ class DigitalBeingServer:
             elif command == "get_system_status":
                 memory_stats = {
                     "short_term_count": len(self.being.memory.short_term_memory),
-                    "long_term_count": sum(len(x) for x in self.being.memory.long_term_memory.values()),
+                    "long_term_count": sum(
+                        len(x) for x in self.being.memory.long_term_memory.values()
+                    ),
                     "total_activities": self.being.memory.get_activity_count(),
                 }
                 current_state = self.being.state.get_current_state()
@@ -352,7 +404,7 @@ class DigitalBeingServer:
                     "memory": memory_stats,
                     "state": current_state,
                     "is_configured": is_config,
-                    "config": self.being.configs
+                    "config": self.being.configs,
                 }
 
             # [ADDED] 'get_activities' now returns 'enabled' from activity_constraints["activities_config"]
@@ -361,24 +413,35 @@ class DigitalBeingServer:
                 info = {}
                 # This dictionary might be in self.being.configs["activity_constraints"]["activities_config"]
                 activities_config = {}
-                if "activity_constraints" in self.being.configs and \
-                   "activities_config" in self.being.configs["activity_constraints"]:
-                    activities_config = self.being.configs["activity_constraints"]["activities_config"]
+                if (
+                    "activity_constraints" in self.being.configs
+                    and "activities_config"
+                    in self.being.configs["activity_constraints"]
+                ):
+                    activities_config = self.being.configs["activity_constraints"][
+                        "activities_config"
+                    ]
 
                 for module_name, cls in acts.items():
                     class_name = cls.__name__
                     # If user has an "enabled" setting, read it. Otherwise default to True
                     is_enabled = True
                     if class_name in activities_config:
-                        is_enabled = bool(activities_config[class_name].get("enabled", True))
+                        is_enabled = bool(
+                            activities_config[class_name].get("enabled", True)
+                        )
 
                     info[module_name] = {
                         "name": class_name,
                         "energy_cost": cls.energy_cost,
                         "cooldown": cls.cooldown,
                         "required_skills": cls.required_skills,
-                        "last_execution": (cls.last_execution.isoformat() if cls.last_execution else None),
-                        "enabled": is_enabled
+                        "last_execution": (
+                            cls.last_execution.isoformat()
+                            if cls.last_execution
+                            else None
+                        ),
+                        "enabled": is_enabled,
                     }
                 return {"success": True, "activities": info}
 
@@ -391,57 +454,77 @@ class DigitalBeingServer:
                 value = params.get("value")
 
                 if not section or not key:
-                    return {"success": False, "message": "Both 'section' and 'key' are required."}
+                    return {
+                        "success": False,
+                        "message": "Both 'section' and 'key' are required.",
+                    }
 
                 # Map sections to their respective config files
                 section_to_file = {
                     "character_config": "character_config.json",
                     "skills_config": "skills_config.json",
-                    "activity_constraints": "activity_constraints.json"
+                    "activity_constraints": "activity_constraints.json",
                 }
 
                 config_file_name = section_to_file.get(section)
                 if not config_file_name:
-                    return {"success": False, "message": f"Unknown configuration section: {section}"}
+                    return {
+                        "success": False,
+                        "message": f"Unknown configuration section: {section}",
+                    }
 
                 config_path = Path(self.being.config_path) / config_file_name
 
                 # Load existing config
                 try:
                     if config_path.exists():
-                        with open(config_path, 'r') as f:
+                        with open(config_path, "r") as f:
                             current_config = json.load(f)
                     else:
                         current_config = {}
                 except json.JSONDecodeError as je:
                     logger.error(f"Failed to parse {config_file_name}: {je}")
-                    return {"success": False, "message": f"Invalid JSON format in {config_file_name}."}
+                    return {
+                        "success": False,
+                        "message": f"Invalid JSON format in {config_file_name}.",
+                    }
                 except Exception as e:
                     logger.error(f"Error loading {config_file_name}: {e}")
-                    return {"success": False, "message": f"Error loading {config_file_name}."}
+                    return {
+                        "success": False,
+                        "message": f"Error loading {config_file_name}.",
+                    }
 
                 # Update the config
                 current_config[key] = value
 
                 # Write back to the config file
                 try:
-                    with open(config_path, 'w') as f:
+                    with open(config_path, "w") as f:
                         json.dump(current_config, f, indent=2)
                 except Exception as e:
                     logger.error(f"Failed to write to {config_file_name}: {e}")
-                    return {"success": False, "message": f"Failed to write to {config_file_name}."}
+                    return {
+                        "success": False,
+                        "message": f"Failed to write to {config_file_name}.",
+                    }
 
                 # Update in-memory config
                 self.being.configs[section][key] = value
 
                 logger.info(f"Updated config: [{section}] {key} = {value}")
 
-                return {"success": True, "message": f"Configuration '{key}' updated successfully."}
+                return {
+                    "success": True,
+                    "message": f"Configuration '{key}' updated successfully.",
+                }
 
             elif command == "get_activity_history":
                 limit = params.get("limit", 10)
                 offset = params.get("offset", 0)
-                recents = self.being.memory.get_recent_activities(limit=limit, offset=offset)
+                recents = self.being.memory.get_recent_activities(
+                    limit=limit, offset=offset
+                )
                 total = self.being.memory.get_activity_count()
                 return {
                     "success": True,
@@ -454,7 +537,9 @@ class DigitalBeingServer:
                 app_name = params.get("app_name")
                 result = await api_manager.list_actions_for_app(app_name)
                 if result.get("success"):
-                    DynamicComposioSkills.register_composio_actions(app_name, result.get("actions", []))
+                    DynamicComposioSkills.register_composio_actions(
+                        app_name, result.get("actions", [])
+                    )
                 return result
 
             elif command == "get_all_skills":
@@ -462,13 +547,17 @@ class DigitalBeingServer:
                 manual_skills_list = []
                 for skill_name, skill_info in config_skills.items():
                     if not isinstance(skill_info, dict):
-                        logger.debug(f"Skipping non-dict skill config: {skill_name} => {skill_info}")
+                        logger.debug(
+                            f"Skipping non-dict skill config: {skill_name} => {skill_info}"
+                        )
                         continue
-                    manual_skills_list.append({
-                        "skill_name": skill_name,
-                        "enabled": bool(skill_info.get("enabled", False)),
-                        "metadata": skill_info
-                    })
+                    manual_skills_list.append(
+                        {
+                            "skill_name": skill_name,
+                            "enabled": bool(skill_info.get("enabled", False)),
+                            "metadata": skill_info,
+                        }
+                    )
 
                 dynamic_skills = DynamicComposioSkills.get_all_dynamic_skills()
                 all_skills = manual_skills_list + dynamic_skills
@@ -476,14 +565,19 @@ class DigitalBeingServer:
 
             elif command == "get_activity_code":
                 from framework.activity_loader import read_activity_code
+
                 activity_name = params.get("activity_name")
                 code_str = read_activity_code(activity_name)
                 if code_str is None:
-                    return {"success": False, "message": f"Could not read code for {activity_name}"}
+                    return {
+                        "success": False,
+                        "message": f"Could not read code for {activity_name}",
+                    }
                 return {"success": True, "code": code_str}
 
             elif command == "save_activity_code":
                 from framework.activity_loader import write_activity_code
+
                 activity_name = params.get("activity_name")
                 new_code = params.get("new_code")
                 ok = write_activity_code(activity_name, new_code)
@@ -494,8 +588,8 @@ class DigitalBeingServer:
 
             elif command == "save_onboarding_data":
                 """
-                Expects 'character', 'skills', and 'constraints' from front-end. 
-                If you also want to let user enable/disable activities in front-end, 
+                Expects 'character', 'skills', and 'constraints' from front-end.
+                If you also want to let user enable/disable activities in front-end,
                 pass 'constraints.activities_config' with the new enabled settings here.
                 """
                 try:
@@ -505,18 +599,26 @@ class DigitalBeingServer:
 
                     char_path = Path(self.being.config_path) / "character_config.json"
                     skill_path = Path(self.being.config_path) / "skills_config.json"
-                    actc_path = Path(self.being.config_path) / "activity_constraints.json"
+                    actc_path = (
+                        Path(self.being.config_path) / "activity_constraints.json"
+                    )
 
                     existing_char = {}
                     existing_skills = {}
                     existing_actc = {}
 
                     if char_path.exists():
-                        existing_char = json.loads(char_path.read_text(encoding="utf-8"))
+                        existing_char = json.loads(
+                            char_path.read_text(encoding="utf-8")
+                        )
                     if skill_path.exists():
-                        existing_skills = json.loads(skill_path.read_text(encoding="utf-8"))
+                        existing_skills = json.loads(
+                            skill_path.read_text(encoding="utf-8")
+                        )
                     if actc_path.exists():
-                        existing_actc = json.loads(actc_path.read_text(encoding="utf-8"))
+                        existing_actc = json.loads(
+                            actc_path.read_text(encoding="utf-8")
+                        )
 
                     existing_char.update(char_data)
                     existing_skills.update(skills_data)
@@ -527,9 +629,15 @@ class DigitalBeingServer:
                     # Possibly set "setup_complete": true
                     existing_char["setup_complete"] = True
 
-                    char_path.write_text(json.dumps(existing_char, indent=2), encoding="utf-8")
-                    skill_path.write_text(json.dumps(existing_skills, indent=2), encoding="utf-8")
-                    actc_path.write_text(json.dumps(existing_actc, indent=2), encoding="utf-8")
+                    char_path.write_text(
+                        json.dumps(existing_char, indent=2), encoding="utf-8"
+                    )
+                    skill_path.write_text(
+                        json.dumps(existing_skills, indent=2), encoding="utf-8"
+                    )
+                    actc_path.write_text(
+                        json.dumps(existing_actc, indent=2), encoding="utf-8"
+                    )
 
                     # Reload in memory
                     self.being.configs["character_config"] = existing_char
@@ -547,15 +655,11 @@ class DigitalBeingServer:
 
         return {"success": False, "message": "Unknown command"}
 
-
     async def broadcast_state(self):
         """Broadcast the current being_state to all connected WebSocket clients."""
         if not self.clients:
             return
-        message = json.dumps({
-            "type": "state_update",
-            "data": self.being_state
-        })
+        message = json.dumps({"type": "state_update", "data": self.being_state})
         disconnected_clients = set()
         for client in self.clients:
             try:
@@ -578,13 +682,14 @@ class DigitalBeingServer:
                 self.handle_websocket,
                 self.host,
                 self.port,
-                process_request=self.serve_static_file
+                process_request=self.serve_static_file,
             ):
                 logger.info(f"Server started on ws://{self.host}:{self.port}")
                 await asyncio.Future()  # run forever
         except Exception as e:
             logger.error(f"Failed to start server: {e}")
             raise
+
 
 if __name__ == "__main__":
     server = DigitalBeingServer()

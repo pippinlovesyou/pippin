@@ -8,11 +8,12 @@ from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="AnalyzeDailyActivity",
     energy_cost=0.3,
     cooldown=86400,  # 24 hours
-    required_skills=["openai_chat"]
+    required_skills=["openai_chat"],
 )
 class AnalyzeDailyActivity(ActivityBase):
     """
@@ -33,15 +34,17 @@ class AnalyzeDailyActivity(ActivityBase):
             # 1) Initialize the chat skill
             if not await chat_skill.initialize():
                 return ActivityResult(
-                    success=False,
-                    error="Failed to initialize openai_chat skill"
+                    success=False, error="Failed to initialize openai_chat skill"
                 )
 
             # 2) Retrieve the last ~10 memory entries for summarization
-            memory_obj: Memory = shared_data.get("system", "memory_ref")  # or pass memory another way
+            memory_obj: Memory = shared_data.get(
+                "system", "memory_ref"
+            )  # or pass memory another way
             # If not found, fallback to your framework's global memory reference
             if not memory_obj:
                 from framework.main import DigitalBeing
+
                 # Fallback to the global being's memory if you prefer
                 # In some setups, you can pass it in shared_data, or fetch it from a global reference
                 being = DigitalBeing()
@@ -60,15 +63,10 @@ class AnalyzeDailyActivity(ActivityBase):
             prompt = f"Here are recent logs:\n{combined_text}\n\nProduce a short daily reflection or summary."
 
             response = await chat_skill.get_chat_completion(
-                prompt=prompt,
-                system_prompt=self.system_prompt,
-                max_tokens=150
+                prompt=prompt, system_prompt=self.system_prompt, max_tokens=150
             )
             if not response["success"]:
-                return ActivityResult(
-                    success=False,
-                    error=response["error"]
-                )
+                return ActivityResult(success=False, error=response["error"])
 
             # 4) Return the reflection as success
             reflection = response["data"]["content"]
@@ -77,8 +75,8 @@ class AnalyzeDailyActivity(ActivityBase):
                 data={"reflection": reflection},
                 metadata={
                     "model": response["data"]["model"],
-                    "finish_reason": response["data"]["finish_reason"]
-                }
+                    "finish_reason": response["data"]["finish_reason"],
+                },
             )
 
         except Exception as e:

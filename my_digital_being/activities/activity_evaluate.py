@@ -7,11 +7,12 @@ from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="EvaluateActivity",
     energy_cost=0.3,
     cooldown=86400,  # example: 1 day
-    required_skills=["openai_chat"]
+    required_skills=["openai_chat"],
 )
 class EvaluateActivity(ActivityBase):
     """
@@ -33,26 +34,30 @@ class EvaluateActivity(ActivityBase):
 
             if not await chat_skill.initialize():
                 return ActivityResult(
-                    success=False,
-                    error="Failed to initialize openai_chat skill"
+                    success=False, error="Failed to initialize openai_chat skill"
                 )
 
             # Possibly fetch the last created/updated code from memory
             from framework.main import DigitalBeing
+
             being = DigitalBeing()
             being.initialize()
             recents = being.memory.get_recent_activities(limit=10)
             code_found = None
 
             for act in recents:
-                if act['activity_type'] == "BuildOrUpdateActivity" and act.get('data', {}):
-                    data_content = act['data']
+                if act["activity_type"] == "BuildOrUpdateActivity" and act.get(
+                    "data", {}
+                ):
+                    data_content = act["data"]
                     if "code_snippet" in data_content:
                         code_found = data_content["code_snippet"]
                         break
 
             if not code_found:
-                return ActivityResult(success=False, error="No newly generated code found to evaluate")
+                return ActivityResult(
+                    success=False, error="No newly generated code found to evaluate"
+                )
 
             prompt_text = (
                 f"Here is the code for a newly created activity:\n{code_found}\n\n"
@@ -61,9 +66,7 @@ class EvaluateActivity(ActivityBase):
             )
 
             response = await chat_skill.get_chat_completion(
-                prompt=prompt_text,
-                system_prompt=self.system_prompt,
-                max_tokens=250
+                prompt=prompt_text, system_prompt=self.system_prompt, max_tokens=250
             )
             if not response["success"]:
                 return ActivityResult(success=False, error=response["error"])
@@ -74,8 +77,8 @@ class EvaluateActivity(ActivityBase):
                 data={"evaluation": evaluation},
                 metadata={
                     "model": response["data"]["model"],
-                    "finish_reason": response["data"]["finish_reason"]
-                }
+                    "finish_reason": response["data"]["finish_reason"],
+                },
             )
 
         except Exception as e:

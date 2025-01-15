@@ -1,10 +1,12 @@
 """Tool for securely setting up API keys."""
+
 import logging
 from typing import List, Dict, Tuple
 import os
 from .secret_storage import secret_manager
 
 logger = logging.getLogger(__name__)
+
 
 class APIKeySetup:
     """Manages the setup and validation of API keys for skills."""
@@ -25,9 +27,13 @@ class APIKeySetup:
 
         try:
             # For Replit environment, use ask_secrets
-            if 'REPL_ID' in os.environ:
+            if "REPL_ID" in os.environ:
                 from replit import ask_secrets
-                env_keys = [f"{skill_name.upper()}_{key.upper()}_API_KEY" for key in required_keys]
+
+                env_keys = [
+                    f"{skill_name.upper()}_{key.upper()}_API_KEY"
+                    for key in required_keys
+                ]
 
                 await ask_secrets(
                     secret_keys=env_keys,
@@ -37,7 +43,7 @@ The {skill_name} skill requires the following API keys to function:
 
 Please provide these keys to enable the skill's functionality.
 These will be stored securely as environment variables.
-"""
+""",
                 )
 
             # Verify keys were set properly
@@ -58,7 +64,9 @@ These will be stored securely as environment variables.
         return results
 
     @staticmethod
-    async def check_skill_keys(skill_name: str, required_keys: List[str]) -> Tuple[bool, List[str]]:
+    async def check_skill_keys(
+        skill_name: str, required_keys: List[str]
+    ) -> Tuple[bool, List[str]]:
         """
         Check if a skill has all required API keys configured.
 

@@ -14,6 +14,7 @@ from .composio_integration import composio_manager
 
 logger = logging.getLogger(__name__)
 
+
 class APIManager:
     def __init__(self):
         # Example: track required keys for each skill
@@ -36,7 +37,9 @@ class APIManager:
         logger.info(f"Registered keys for skill {skill_name}: {required_keys}")
         return True
 
-    def get_required_keys(self, skill_name: Optional[str] = None) -> Dict[str, List[str]]:
+    def get_required_keys(
+        self, skill_name: Optional[str] = None
+    ) -> Dict[str, List[str]]:
         """
         Return a dict of skill -> list of required keys.
         If skill_name is provided, return only that one skill's key list.
@@ -44,12 +47,12 @@ class APIManager:
         if skill_name:
             # Return just one skill's keys if it exists
             if skill_name in self._required_keys:
-                return { skill_name: list(self._required_keys[skill_name]) }
+                return {skill_name: list(self._required_keys[skill_name])}
             else:
-                return { skill_name: [] }
+                return {skill_name: []}
         else:
             # Return all
-            return { skill: list(keys) for skill, keys in self._required_keys.items() }
+            return {skill: list(keys) for skill, keys in self._required_keys.items()}
 
     async def check_api_key_exists(self, skill_name: str, key_name: str) -> bool:
         """
@@ -72,10 +75,7 @@ class APIManager:
         """
         skills_status = {}
         for skill, keys in self._required_keys.items():
-            skill_info = {
-                "display_name": skill.title(),
-                "required_keys": {}
-            }
+            skill_info = {"display_name": skill.title(), "required_keys": {}}
             for k in keys:
                 # Check if configured
                 exists = await self._secret_manager.check_api_key_exists(skill, k)
@@ -83,7 +83,9 @@ class APIManager:
             skills_status[skill] = skill_info
         return skills_status
 
-    async def set_api_key(self, skill_name: str, key_name: str, value: str) -> Dict[str, Any]:
+    async def set_api_key(
+        self, skill_name: str, key_name: str, value: str
+    ) -> Dict[str, Any]:
         """
         Store a new API key into secret_manager for a given skill & key name.
         """
@@ -101,6 +103,7 @@ class APIManager:
         Calls composio_manager.list_actions_for_app(app_name).
         """
         return await self._composio_manager.list_actions_for_app(app_name)
+
 
 # Global
 api_manager = APIManager()

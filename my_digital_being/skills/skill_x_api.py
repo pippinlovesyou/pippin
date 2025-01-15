@@ -1,4 +1,5 @@
 """X (Twitter) API integration skill."""
+
 import os
 import logging
 from typing import Dict, Any, Optional
@@ -9,9 +10,12 @@ from framework.api_management import api_manager
 
 logger = logging.getLogger(__name__)
 
+
 class XAPIError(Exception):
     """Custom exception for X API errors"""
+
     pass
+
 
 class XAPISkill:
     """Skill for interacting with X (Twitter) API."""
@@ -19,9 +23,9 @@ class XAPISkill:
     def __init__(self, config: Dict[str, Any]):
         """Initialize skill configuration."""
         self.config = config
-        self.enabled = config.get('enabled', False)
-        self.rate_limit = config.get('rate_limit', 100)
-        self.cooldown_period = config.get('cooldown_period', 300)
+        self.enabled = config.get("enabled", False)
+        self.rate_limit = config.get("rate_limit", 100)
+        self.cooldown_period = config.get("cooldown_period", 300)
         self.posts_count = 0
         self.skill_config = SkillConfig("twitter_posting")
         self.oauth_session: Optional[OAuth1Session] = None
@@ -34,7 +38,7 @@ class XAPISkill:
                 "API_KEY",
                 "API_SECRET",
                 "ACCESS_TOKEN",
-                "ACCESS_TOKEN_SECRET"
+                "ACCESS_TOKEN_SECRET",
             ]
             api_manager.register_required_keys("twitter_posting", required_keys)
 
@@ -83,13 +87,12 @@ class XAPISkill:
             logger.error(f"Authentication failed: {e}")
             return False
 
-    async def post_tweet(self, text: str, media_path: Optional[str] = None) -> Dict[str, Any]:
+    async def post_tweet(
+        self, text: str, media_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Post a tweet with optional media attachment."""
         if not self.can_post():
-            return {
-                "success": False,
-                "error": "Rate limit exceeded or skill disabled"
-            }
+            return {"success": False, "error": "Rate limit exceeded or skill disabled"}
 
         if not self.oauth_session:
             if not await self.authenticate():
@@ -108,8 +111,7 @@ class XAPISkill:
 
             # Post tweet
             response = self.oauth_session.post(
-                "https://api.twitter.com/2/tweets",
-                json=post_payload
+                "https://api.twitter.com/2/tweets", json=post_payload
             )
 
             if response.status_code != 201:
@@ -120,7 +122,7 @@ class XAPISkill:
             return {
                 "success": True,
                 "tweet_id": response.json()["data"]["id"],
-                "content": text
+                "content": text,
             }
 
         except Exception as e:
@@ -130,15 +132,16 @@ class XAPISkill:
     async def _upload_media(self, media_path: str) -> Optional[str]:
         """Upload media to X and return media_id."""
         try:
-            with open(media_path, 'rb') as f:
+            with open(media_path, "rb") as f:
                 files = {"media": f}
                 upload_response = self.oauth_session.post(
-                    "https://upload.twitter.com/1.1/media/upload.json",
-                    files=files
+                    "https://upload.twitter.com/1.1/media/upload.json", files=files
                 )
 
             if upload_response.status_code != 200:
-                logger.error(f"Failed to upload media. Status code: {upload_response.status_code}")
+                logger.error(
+                    f"Failed to upload media. Status code: {upload_response.status_code}"
+                )
                 return None
 
             media_data = upload_response.json()

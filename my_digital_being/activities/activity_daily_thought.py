@@ -1,4 +1,5 @@
 """Activity for generating daily thoughts using OpenAI."""
+
 import logging
 from datetime import timedelta
 from framework.activity_decorator import activity, ActivityBase, ActivityResult
@@ -6,11 +7,12 @@ from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="daily_thought",
     energy_cost=0.4,
     cooldown=1800,  # 30 minutes
-    required_skills=['openai_chat']
+    required_skills=["openai_chat"],
 )
 class DailyThoughtActivity(ActivityBase):
     """Generates insightful daily thoughts using OpenAI."""
@@ -34,20 +36,18 @@ class DailyThoughtActivity(ActivityBase):
             result = await chat_skill.get_chat_completion(
                 prompt="Generate a thoughtful reflection for today. Focus on personal growth, mindfulness, or an interesting perspective.",
                 system_prompt=self.system_prompt,
-                max_tokens=100
+                max_tokens=100,
             )
 
             if not result["success"]:
                 return ActivityResult.error_result(result["error"])
 
             return ActivityResult.success_result(
-                data={
-                    "thought": result["data"]["content"]
-                },
+                data={"thought": result["data"]["content"]},
                 metadata={
                     "model": result["data"]["model"],
-                    "finish_reason": result["data"]["finish_reason"]
-                }
+                    "finish_reason": result["data"]["finish_reason"],
+                },
             )
 
         except Exception as e:

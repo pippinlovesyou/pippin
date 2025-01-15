@@ -6,13 +6,15 @@ import json
 
 logger = logging.getLogger(__name__)
 
+
 def activity(
     name: str,
     energy_cost: float = 0.2,
     cooldown: int = 0,
-    required_skills: Optional[List[str]] = None
+    required_skills: Optional[List[str]] = None,
 ):
     """Decorator for activity classes."""
+
     def decorator(cls):
         cls.activity_name = name
         cls.energy_cost = energy_cost
@@ -22,10 +24,10 @@ def activity(
 
         # Add metadata to the class
         cls.metadata = {
-            'name': name,
-            'energy_cost': energy_cost,
-            'cooldown': cooldown,
-            'required_skills': required_skills
+            "name": name,
+            "energy_cost": energy_cost,
+            "cooldown": cooldown,
+            "required_skills": required_skills,
         }
 
         # Wrap the execute method
@@ -38,8 +40,7 @@ def activity(
                 if not self._can_execute():
                     logger.warning(f"Activity {name} is on cooldown")
                     return ActivityResult(
-                        success=False,
-                        error="Activity is on cooldown"
+                        success=False, error="Activity is on cooldown"
                     )
 
                 # Log activity start
@@ -61,24 +62,23 @@ def activity(
 
             except Exception as e:
                 logger.error(f"Error in activity {name}: {e}")
-                return ActivityResult(
-                    success=False,
-                    error=str(e)
-                )
+                return ActivityResult(success=False, error=str(e))
 
         cls.execute = wrapped_execute
         return cls
 
     return decorator
 
+
 class ActivityResult:
     """Class to store activity execution results."""
+
     def __init__(
         self,
         success: bool,
         data: Optional[Any] = None,
         error: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         self.success = success
         self.data = data
@@ -90,7 +90,7 @@ class ActivityResult:
         """Convert result to dictionary format."""
         data_dict = {}
         if self.data:
-            if hasattr(self.data, 'to_dict'):
+            if hasattr(self.data, "to_dict"):
                 data_dict = self.data.to_dict()
             elif isinstance(self.data, dict):
                 data_dict = self.data
@@ -101,15 +101,17 @@ class ActivityResult:
                     data_dict = str(self.data)
 
         return {
-            'success': self.success,
-            'data': data_dict,
-            'error': self.error,
-            'metadata': self.metadata,
-            'timestamp': self.timestamp.isoformat()
+            "success": self.success,
+            "data": data_dict,
+            "error": self.error,
+            "metadata": self.metadata,
+            "timestamp": self.timestamp.isoformat(),
         }
 
     @classmethod
-    def success_result(cls, data: Optional[Any] = None, metadata: Optional[Dict[str, Any]] = None):
+    def success_result(
+        cls, data: Optional[Any] = None, metadata: Optional[Dict[str, Any]] = None
+    ):
         """Create a successful result."""
         return cls(success=True, data=data, metadata=metadata)
 
@@ -118,8 +120,10 @@ class ActivityResult:
         """Create an error result."""
         return cls(success=False, error=error, metadata=metadata)
 
+
 class ActivityBase:
     """Base class for all activities."""
+
     def __init__(self):
         self.result = None
         self.last_execution: Optional[datetime] = None
@@ -139,25 +143,29 @@ class ActivityBase:
         if isinstance(self.result, ActivityResult):
             return self.result.to_dict()
         return {
-            'success': bool(self.result),
-            'data': self.result if self.result else None,
-            'error': None,
-            'timestamp': datetime.now().isoformat()
+            "success": bool(self.result),
+            "data": self.result if self.result else None,
+            "error": None,
+            "timestamp": datetime.now().isoformat(),
         }
 
     async def execute(self, shared_data) -> ActivityResult:
         """Base execute method that should be overridden by activities."""
         raise NotImplementedError("Activities must implement execute method")
 
+
 def skill_required(skill_name: str):
     """Decorator to specify required skills for methods."""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            if not hasattr(self, 'required_skills'):
+            if not hasattr(self, "required_skills"):
                 self.required_skills = []
             if skill_name not in self.required_skills:
                 self.required_skills.append(skill_name)
             return func(self, *args, **kwargs)
+
         return wrapper
+
     return decorator

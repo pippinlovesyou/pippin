@@ -8,11 +8,12 @@ from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
 
+
 @activity(
     name="post_a_tweet",
     energy_cost=0.4,
     cooldown=10000,  # 1 hour
-    required_skills=['twitter_posting']
+    required_skills=["twitter_posting"],
 )
 class PostTweetActivity(ActivityBase):
     """
@@ -37,7 +38,9 @@ class PostTweetActivity(ActivityBase):
 
             # 1) Initialize the chat skill
             if not await chat_skill.initialize():
-                return ActivityResult(success=False, error="Failed to initialize chat skill")
+                return ActivityResult(
+                    success=False, error="Failed to initialize chat skill"
+                )
 
             # 2) Gather personality + recent tweets
             character_config = self._get_character_config(shared_data)
@@ -49,7 +52,7 @@ class PostTweetActivity(ActivityBase):
             chat_response = await chat_skill.get_chat_completion(
                 prompt=prompt_text,
                 system_prompt="You are an AI that composes tweets with the given personality.",
-                max_tokens=100
+                max_tokens=100,
             )
             if not chat_response["success"]:
                 return ActivityResult(success=False, error=chat_response["error"])
@@ -61,32 +64,32 @@ class PostTweetActivity(ActivityBase):
             # 4) Post the tweet via Composio
             post_result = self._post_tweet_via_composio(tweet_text)
             if not post_result["success"]:
-                error_msg = post_result.get("error", "Unknown error posting tweet via Composio")
+                error_msg = post_result.get(
+                    "error", "Unknown error posting tweet via Composio"
+                )
                 logger.error(f"Tweet posting failed: {error_msg}")
                 return ActivityResult(success=False, error=error_msg)
 
             tweet_id = post_result.get("tweet_id")
             tweet_link = (
                 f"https://twitter.com/{self.twitter_username}/status/{tweet_id}"
-                if tweet_id else None
+                if tweet_id
+                else None
             )
 
             # 5) Return success, adding link & prompt in metadata
             logger.info(f"Successfully posted tweet: {tweet_text[:50]}...")
             return ActivityResult(
                 success=True,
-                data={
-                    "tweet_id": tweet_id,
-                    "content": tweet_text
-                },
+                data={"tweet_id": tweet_id, "content": tweet_text},
                 metadata={
                     "length": len(tweet_text),
                     "method": "composio",
                     "model": chat_response["data"].get("model"),
                     "finish_reason": chat_response["data"].get("finish_reason"),
                     "tweet_link": tweet_link,
-                    "prompt_used": prompt_text  # <--- includes the full prompt
-                }
+                    "prompt_used": prompt_text,  # <--- includes the full prompt
+                },
             )
 
         except Exception as e:
@@ -104,6 +107,7 @@ class PostTweetActivity(ActivityBase):
 
         # fallback
         from framework.main import DigitalBeing
+
         being = DigitalBeing()
         being.initialize()
         return being.configs.get("character_config", {})
@@ -117,6 +121,7 @@ class PostTweetActivity(ActivityBase):
 
         if not memory_obj:
             from framework.main import DigitalBeing
+
             being = DigitalBeing()
             being.initialize()
             memory_obj = being.memory
@@ -131,7 +136,9 @@ class PostTweetActivity(ActivityBase):
 
         return tweets[:limit]
 
-    def _build_chat_prompt(self, personality: Dict[str, Any], recent_tweets: List[str]) -> str:
+    def _build_chat_prompt(
+        self, personality: Dict[str, Any], recent_tweets: List[str]
+    ) -> str:
         """
         Construct the user prompt referencing personality + last tweets.
         """
@@ -160,12 +167,15 @@ class PostTweetActivity(ActivityBase):
         """
         try:
             from framework.composio_integration import composio_manager
-            logger.info(f"Posting tweet via Composio action='{self.composio_action}', text='{tweet_text[:50]}...'")
+
+            logger.info(
+                f"Posting tweet via Composio action='{self.composio_action}', text='{tweet_text[:50]}...'"
+            )
 
             response = composio_manager._toolset.execute_action(
                 action=self.composio_action,
                 params={"text": tweet_text},
-                entity_id="MyDigitalBeing"
+                entity_id="MyDigitalBeing",
             )
 
             # The actual success key is "successfull" (with 2 Ls)
@@ -178,7 +188,7 @@ class PostTweetActivity(ActivityBase):
             else:
                 return {
                     "success": False,
-                    "error": response.get("error", "Unknown or missing success key")
+                    "error": response.get("error", "Unknown or missing success key"),
                 }
 
         except Exception as e:

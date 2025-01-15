@@ -1,9 +1,11 @@
 """Secure skill configuration management system + dynamic Composio skills."""
+
 import os
 import logging
 from typing import Dict, Any, Optional, Set, List
 
 logger = logging.getLogger(__name__)
+
 
 class SkillConfig:
     """Manages secure configuration for manually coded skills, including API keys."""
@@ -26,7 +28,7 @@ class SkillConfig:
         prefix = f"{self.skill_name.upper()}_"
         for key, value in os.environ.items():
             if key.startswith(prefix):
-                config_key = key[len(prefix):].lower()
+                config_key = key[len(prefix) :].lower()
                 self.config[config_key] = value
 
     def get_api_key(self, key_name: str) -> Optional[str]:
@@ -38,7 +40,9 @@ class SkillConfig:
         api_key = os.environ.get(env_key)
 
         if not api_key and self._is_key_required(key_name):
-            error_msg = f"Required API key '{key_name}' not found for skill '{self.skill_name}'"
+            error_msg = (
+                f"Required API key '{key_name}' not found for skill '{self.skill_name}'"
+            )
             logger.error(error_msg)
             raise ValueError(error_msg)
 
@@ -50,8 +54,10 @@ class SkillConfig:
 
     def _is_key_required(self, key_name: str) -> bool:
         """Check if an API key is required for this skill."""
-        return (self.skill_name in SkillConfig._required_keys and
-                key_name in SkillConfig._required_keys[self.skill_name])
+        return (
+            self.skill_name in SkillConfig._required_keys
+            and key_name in SkillConfig._required_keys[self.skill_name]
+        )
 
     @classmethod
     def register_required_keys(cls, skill_name: str, required_keys: List[str]) -> bool:
@@ -63,7 +69,9 @@ class SkillConfig:
             if not os.environ.get(env_key):
                 missing_keys.append(key)
         if missing_keys:
-            logger.error(f"Missing required API keys for {skill_name}: {', '.join(missing_keys)}")
+            logger.error(
+                f"Missing required API keys for {skill_name}: {', '.join(missing_keys)}"
+            )
             return False
         return True
 
@@ -90,6 +98,7 @@ class SkillConfig:
 #
 # BELOW: Our new “DynamicComposioSkills” helper for storing discovered actions as if they were skills
 #
+
 
 class DynamicComposioSkills:
     """
@@ -124,15 +133,12 @@ class DynamicComposioSkills:
                 "required_api_keys": ["COMPOSIO"],
                 "metadata": {
                     "composio_app": app_name.upper(),
-                    "composio_action": action_id
-                }
+                    "composio_action": action_id,
+                },
             }
 
             # Avoid duplicates if the user calls this multiple times
-            if not any(
-                s for s in cls._dynamic_skills
-                if s["skill_name"] == skill_name
-            ):
+            if not any(s for s in cls._dynamic_skills if s["skill_name"] == skill_name):
                 cls._dynamic_skills.append(skill_record)
                 logger.info(f"[DynamicComposioSkills] Registered {skill_name}")
 

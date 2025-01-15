@@ -22,6 +22,7 @@ from composio_openai import ComposioToolSet
 
 logger = logging.getLogger(__name__)
 
+
 class ComposioManager:
     def __init__(self):
         self._toolset = None
@@ -46,7 +47,9 @@ class ComposioManager:
             try:
                 with self.storage_file.open("r", encoding="utf-8") as f:
                     self._oauth_connections = json.load(f)
-                logger.info(f"Loaded Composio OAuth connections from {self.storage_file}")
+                logger.info(
+                    f"Loaded Composio OAuth connections from {self.storage_file}"
+                )
             except Exception as e:
                 logger.warning(f"Error loading Composio OAuth file: {e}")
         else:
@@ -68,18 +71,13 @@ class ComposioManager:
             if not api_key:
                 logger.error("No COMPOSIO_API_KEY in environment")
                 return
-            self._toolset = ComposioToolSet(
-                api_key=api_key,
-                entity_id=self._entity_id
-            )
+            self._toolset = ComposioToolSet(api_key=api_key, entity_id=self._entity_id)
             logger.info("Created ComposioToolSet instance")
 
             # Load the list of apps
             tools = self._toolset.get_tools(actions=["COMPOSIO_LIST_APPS"])
             result = self._toolset.execute_action(
-                action="COMPOSIO_LIST_APPS",
-                params={},
-                entity_id=self._entity_id
+                action="COMPOSIO_LIST_APPS", params={}, entity_id=self._entity_id
             )
             success_value = result.get("success") or result.get("successfull")
             if success_value:
@@ -89,7 +87,9 @@ class ComposioManager:
                     key = app_info.get("key", "").upper()
                     if key:
                         self._available_apps[key] = app_info
-                logger.info(f"Fetched {len(self._available_apps)} apps from Composio meta-app")
+                logger.info(
+                    f"Fetched {len(self._available_apps)} apps from Composio meta-app"
+                )
             else:
                 logger.warning("COMPOSIO_LIST_APPS action failed.")
         except Exception as e:
@@ -101,14 +101,18 @@ class ComposioManager:
         upper_app = app_name.upper()
         self._oauth_connections[upper_app] = {
             "connected": True,
-            "connection_id": connection_id
+            "connection_id": connection_id,
         }
-        logger.info(f"mark_app_connected: Marked {upper_app} as connected with connection_id={connection_id}")
+        logger.info(
+            f"mark_app_connected: Marked {upper_app} as connected with connection_id={connection_id}"
+        )
 
         # [ADDED] Persist updated connections to disk
         self._save_persistence()
 
-    async def initiate_oauth_flow(self, app_name: str, redirect_url: str) -> Dict[str, Any]:
+    async def initiate_oauth_flow(
+        self, app_name: str, redirect_url: str
+    ) -> Dict[str, Any]:
         """Begin an OAuth connection for a given app."""
         if not self._toolset:
             return {"success": False, "error": "Toolset not initialized"}
@@ -122,7 +126,7 @@ class ComposioManager:
             connection_req = self._toolset.initiate_connection(
                 redirect_url=redirect_url,
                 entity_id=self._entity_id,
-                app=app_info["key"]  # e.g. "twitter"
+                app=app_info["key"],  # e.g. "twitter"
             )
             # Some versions of Composio call it 'connectionId', or 'connectedAccountId'
             conn_id = getattr(connection_req, "connectionId", None)
@@ -131,19 +135,23 @@ class ComposioManager:
             if not conn_id:
                 return {
                     "success": False,
-                    "error": "'ConnectionRequestModel' object has no attribute 'connectionId'"
+                    "error": "'ConnectionRequestModel' object has no attribute 'connectionId'",
                 }
 
             return {
                 "success": True,
                 "redirect_url": connection_req.redirectUrl,
-                "connection_id": conn_id
+                "connection_id": conn_id,
             }
         except Exception as e:
-            logger.error(f"initiate_oauth_flow error for {app_name}: {e}", exc_info=True)
+            logger.error(
+                f"initiate_oauth_flow error for {app_name}: {e}", exc_info=True
+            )
             return {"success": False, "error": str(e)}
 
-    async def handle_oauth_callback(self, connection_id: str, code: str) -> Dict[str, Any]:
+    async def handle_oauth_callback(
+        self, connection_id: str, code: str
+    ) -> Dict[str, Any]:
         """
         Finalize the OAuth flow for a given connection_id using the code from the provider.
         Then store 'connected' in _oauth_connections so our front-end can see that it's connected.
@@ -152,7 +160,9 @@ class ComposioManager:
             return {"success": False, "error": "Toolset not initialized"}
 
         try:
-            result = self._toolset.complete_connection(connection_id=connection_id, code=code)
+            result = self._toolset.complete_connection(
+                connection_id=connection_id, code=code
+            )
             if result.success:
                 # Mark as connected
                 app_key = result.app.upper() if result.app else "UNKNOWN"
@@ -164,7 +174,9 @@ class ComposioManager:
             return {
                 "success": result.success,
                 "app": result.app,
-                "message": "Connection successful" if result.success else "Connection failed"
+                "message": (
+                    "Connection successful" if result.success else "Connection failed"
+                ),
             }
         except Exception as e:
             logger.error(f"Error in handle_oauth_callback: {e}", exc_info=True)
@@ -172,8 +184,8 @@ class ComposioManager:
 
     def mark_app_connected_without_code(self, app_name: str, connected_account_id: str):
         """
-        If Composio doesn't require .complete_connection for some flows 
-        but returns connectedAccountId in the callback, 
+        If Composio doesn't require .complete_connection for some flows
+        but returns connectedAccountId in the callback,
         we can directly mark the app as connected.
         """
         self.mark_app_connected(app_name, connected_account_id)
@@ -187,15 +199,19 @@ class ComposioManager:
         for key, info in self._available_apps.items():
             upper_key = key.upper()
             is_connected = False
-            if upper_key in self._oauth_connections and self._oauth_connections[upper_key].get("connected"):
+            if upper_key in self._oauth_connections and self._oauth_connections[
+                upper_key
+            ].get("connected"):
                 is_connected = True
 
-            results.append({
-                "name": upper_key,  # e.g. "TWITTER"
-                "display_name": info.get("name", upper_key),
-                "connected": is_connected,
-                "oauth_supported": True,
-            })
+            results.append(
+                {
+                    "name": upper_key,  # e.g. "TWITTER"
+                    "display_name": info.get("name", upper_key),
+                    "connected": is_connected,
+                    "oauth_supported": True,
+                }
+            )
         return results
 
     async def list_actions_for_app(self, app_name: str) -> Dict[str, Any]:
@@ -207,9 +223,9 @@ class ComposioManager:
         {
             "success": True,
             "actions": [
-                "TWITTER_TWEET_CREATE", 
-                "TWITTER_DM_SEND", 
-                ... 
+                "TWITTER_TWEET_CREATE",
+                "TWITTER_DM_SEND",
+                ...
             ]
         }
         """
@@ -217,7 +233,10 @@ class ComposioManager:
 
         # Check if the app is recognized in our local cache
         if upper_app not in self._available_apps:
-            return {"success": False, "error": f"App '{app_name}' not recognized in _available_apps"}
+            return {
+                "success": False,
+                "error": f"App '{app_name}' not recognized in _available_apps",
+            }
         # Check if the app is connected
         if not self._oauth_connections.get(upper_app, {}).get("connected"):
             return {"success": False, "error": f"App '{app_name}' is not connected yet"}
@@ -246,13 +265,18 @@ class ComposioManager:
                             actions.append(display_name)
                 return {"success": True, "actions": actions}
             else:
-                logger.error(f"Composio API returned {resp.status_code} for app {app_name}")
+                logger.error(
+                    f"Composio API returned {resp.status_code} for app {app_name}"
+                )
                 return {
                     "success": False,
-                    "error": f"Composio returned status {resp.status_code}"
+                    "error": f"Composio returned status {resp.status_code}",
                 }
         except Exception as ex:
-            logger.error(f"Error retrieving actions for {app_name} from Composio: {ex}", exc_info=True)
+            logger.error(
+                f"Error retrieving actions for {app_name} from Composio: {ex}",
+                exc_info=True,
+            )
             return {"success": False, "error": str(ex)}
 
 

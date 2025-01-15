@@ -1,5 +1,3 @@
-
-
 """
 LiteLLM Skill
 Allows usage of multiple providers (Anthropic, OpenAI, OpenRouter, etc.) via litellm.
@@ -17,6 +15,7 @@ from framework.skill_config import SkillConfig
 from litellm import completion
 
 logger = logging.getLogger(__name__)
+
 
 class LiteLLMSkill:
     """Skill for chat/completion using LiteLLM."""
@@ -41,7 +40,9 @@ class LiteLLMSkill:
                 os.environ["LITELLM_API_KEY"] = key
                 logger.info("LiteLLM API key loaded from secret manager.")
             else:
-                logger.info("No LITELLM API key found; assuming environment or no key needed.")
+                logger.info(
+                    "No LITELLM API key found; assuming environment or no key needed."
+                )
 
             self._initialized = True
             return True
@@ -55,13 +56,13 @@ class LiteLLMSkill:
         self,
         prompt: str,
         system_prompt: str = "You are a helpful AI assistant.",
-        max_tokens: int = 150
+        max_tokens: int = 150,
     ) -> Dict[str, Any]:
         if not self._initialized:
             return {
                 "success": False,
                 "error": "LiteLLMSkill not initialized",
-                "data": None
+                "data": None,
             }
 
         try:
@@ -74,14 +75,14 @@ class LiteLLMSkill:
                 model=self.model_name,
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=0.7
+                temperature=0.7,
             )
             choices = response.get("choices", [])
             if not choices:
                 return {
                     "success": False,
                     "error": "No choices returned from LiteLLM",
-                    "data": None
+                    "data": None,
                 }
 
             content = choices[0]["message"]["content"]
@@ -95,16 +96,13 @@ class LiteLLMSkill:
                     "finish_reason": finish_reason,
                     "model": used_model,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             logger.error(f"Error in LiteLLMSkill completion: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": f"LiteLLMSkill error: {e}",
-                "data": None
-            }
+            return {"success": False, "error": f"LiteLLMSkill error: {e}", "data": None}
+
 
 # Global instance
 lite_llm_skill = LiteLLMSkill()

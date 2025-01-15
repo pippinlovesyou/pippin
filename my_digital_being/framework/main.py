@@ -15,11 +15,12 @@ from .activity_decorator import ActivityResult
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DigitalBeing:
     def __init__(self, config_path: Optional[str] = None):
         # Use the config directory relative to this file's location
         if config_path is None:
-            config_path = str(Path(__file__).parent.parent / 'config')
+            config_path = str(Path(__file__).parent.parent / "config")
         self.config_path = Path(config_path)
         self.configs = self._load_configs()
         self.shared_data = SharedData()
@@ -27,8 +28,7 @@ class DigitalBeing:
         self.state = State()
         self.activity_loader = ActivityLoader()
         self.activity_selector = ActivitySelector(
-            self.configs.get("activity_constraints", {}),
-            self.state
+            self.configs.get("activity_constraints", {}), self.state
         )
 
     def _load_configs(self) -> Dict[str, Any]:
@@ -37,16 +37,16 @@ class DigitalBeing:
         config_files = [
             "character_config.json",
             "activity_constraints.json",
-            "skills_config.json"
+            "skills_config.json",
         ]
 
         for config_file in config_files:
             try:
-                with open(self.config_path / config_file, 'r', encoding='utf-8') as f:
-                    configs[config_file.replace('.json', '')] = json.load(f)
+                with open(self.config_path / config_file, "r", encoding="utf-8") as f:
+                    configs[config_file.replace(".json", "")] = json.load(f)
             except Exception as e:
                 logger.error(f"Failed to load config {config_file}: {e}")
-                configs[config_file.replace('.json', '')] = {}
+                configs[config_file.replace(".json", "")] = {}
 
         return configs
 
@@ -66,14 +66,18 @@ class DigitalBeing:
         for skill_name, maybe_skill_dict in skills_config.items():
             # SKIP STR KEYS LIKE 'default_llm_skill'
             if not isinstance(maybe_skill_dict, dict):
-                logger.debug(f"Skipping non-dict skill config: {skill_name} -> {maybe_skill_dict}")
+                logger.debug(
+                    f"Skipping non-dict skill config: {skill_name} -> {maybe_skill_dict}"
+                )
                 continue
 
             if maybe_skill_dict.get("enabled", False):
                 required_keys = maybe_skill_dict.get("required_api_keys", [])
                 if required_keys:
                     api_manager.register_required_keys(skill_name, required_keys)
-                    logger.info(f"Registered API key requirements for {skill_name}: {required_keys}")
+                    logger.info(
+                        f"Registered API key requirements for {skill_name}: {required_keys}"
+                    )
 
         # Initialize sub-components
         self.memory.initialize()
@@ -98,7 +102,7 @@ class DigitalBeing:
 
     async def run(self):
         """
-        Main run loop. If not configured, we skip activity selection 
+        Main run loop. If not configured, we skip activity selection
         (but keep looping so the server can remain up).
         """
         logger.info("Starting digital being main loop...")
@@ -107,13 +111,17 @@ class DigitalBeing:
             while True:
                 # If not configured, skip picking an activity
                 if not self.is_configured():
-                    logger.warning("Digital Being NOT configured. Skipping activity execution.")
+                    logger.warning(
+                        "Digital Being NOT configured. Skipping activity execution."
+                    )
                     await asyncio.sleep(3)
                     continue
 
                 current_activity = self.activity_selector.select_next_activity()
                 if current_activity:
-                    logger.info(f"Selected activity: {current_activity.__class__.__name__}")
+                    logger.info(
+                        f"Selected activity: {current_activity.__class__.__name__}"
+                    )
                     await self.execute_activity(current_activity)
 
                 self.state.update()
@@ -127,22 +135,26 @@ class DigitalBeing:
     async def execute_activity(self, activity) -> ActivityResult:
         """Execute a selected activity."""
         try:
-            logger.info(f"Starting execution of activity: {activity.__class__.__name__}")
+            logger.info(
+                f"Starting execution of activity: {activity.__class__.__name__}"
+            )
             result = await activity.execute(self.shared_data)
 
             if not isinstance(result, ActivityResult):
-                logger.warning(f"Activity {activity.__class__.__name__} did not return an ActivityResult")
+                logger.warning(
+                    f"Activity {activity.__class__.__name__} did not return an ActivityResult"
+                )
                 result = ActivityResult(
                     success=bool(result),
                     data=result if result else None,
-                    error="Invalid result type" if not result else None
+                    error="Invalid result type" if not result else None,
                 )
 
             # Store the activity result
             activity_record = {
-                'timestamp': datetime.now().isoformat(),
-                'activity_type': activity.__class__.__name__,
-                'result': result.to_dict()
+                "timestamp": datetime.now().isoformat(),
+                "activity_type": activity.__class__.__name__,
+                "result": result.to_dict(),
             }
             self.memory.store_activity_result(activity_record)
 
@@ -150,7 +162,9 @@ class DigitalBeing:
                 logger.info(f"Successfully executed: {activity.__class__.__name__}")
                 self.state.record_activity_completion()
             else:
-                logger.warning(f"Activity returned failure: {activity.__class__.__name__}")
+                logger.warning(
+                    f"Activity returned failure: {activity.__class__.__name__}"
+                )
 
             return result
 
@@ -158,15 +172,14 @@ class DigitalBeing:
             error_msg = f"Failed to execute {activity.__class__.__name__}: {e}"
             logger.error(error_msg)
 
-            error_result = ActivityResult(
-                success=False,
-                error=str(e)
+            error_result = ActivityResult(success=False, error=str(e))
+            self.memory.store_activity_result(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "activity_type": activity.__class__.__name__,
+                    "result": error_result.to_dict(),
+                }
             )
-            self.memory.store_activity_result({
-                'timestamp': datetime.now().isoformat(),
-                'activity_type': activity.__class__.__name__,
-                'result': error_result.to_dict()
-            })
 
             return error_result
 
@@ -179,6 +192,7 @@ class DigitalBeing:
 
 if __name__ == "__main__":
     import asyncio
+
     being = DigitalBeing()
     being.initialize()
     asyncio.run(being.run())
