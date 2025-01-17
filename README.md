@@ -115,7 +115,7 @@ You can choose to run everything from your terminal or via a web-based UI. Both 
 │   ├─ skill_solana_agent.py       # We'll create this manually (example)
 │   ├─ skill_x_api.py              # For API skills
 |   └─ skill_web_scraping.py       # Used for scraping information from the web
-|   
+|
 ├─ framework/
 │   ├─ main.py                     # Core DigitalBeing class, run loop
 │   ├─ activity_selector.py        # Hybrid LLM + deterministic selection
@@ -154,7 +154,7 @@ git clone https://github.com/<your-username>/pippin-draft.git
 cd pippin-draft
 ```
 
-### 2. Install Dependencies
+### 2. Install Dependencies (this step can be skipped if you use GitHub codespaces or the provided dev container)
 
 First, install the UV package manager if not already installed:
 ```bash
@@ -173,16 +173,22 @@ source .venv/bin/activate  # On Unix/MacOS
 Install the project dependencies:
 ```bash
 uv pip install -r requirements.txt
-mv my_digital_being/config_sample my_digital_being/config
 ```
 
 ### 3. Onboarding & Configuration
 
-You can pick one of these approaches after you've navigated to the project directory:
+Navigate to the project directory:
 
 ```bash
 cd my_digital_being
 ```
+
+Copy the config_sample folder.
+```bash
+cp config_sample config
+```
+
+You can pick one of the following approaches:
 - **CLI:** `python -m tools.onboard`
 - **Web UI:** `python -m server` then open `http://localhost:8000` in your browser and follow the onboarding prompts.
 
@@ -373,7 +379,7 @@ class SolanaAgentSkill:
 
         try:
             logger.info(f"Deploying token '{name}' on Solana with supply={supply}")
-            # Pseudocode: 
+            # Pseudocode:
             # agent = SolanaAgentKit(self.private_key, "https://api.mainnet-beta.solana.com")
             # result = await agent.deployToken(name, "uri", symbol, decimals, supply)
             # return {"success": True, "mint": result["mint_address"]}
