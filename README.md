@@ -1,7 +1,6 @@
 <!-- ![Pippin, Autonomous Being Framework](media/pippin.jpg) -->
 <img src="media/pippin.jpg" alt="Alt text" width="300" height="200" >
 
-
 # Pippin, The Digital Being Framework for Autonomous Agents
 
 Welcome to Pippin — a flexible, open-source framework to create a digital “being” that:
@@ -21,24 +20,24 @@ Welcome to Pippin — a flexible, open-source framework to create a digital “b
 3. **Prerequisites**
 4. **Folder Structure**
 5. **Quick Start**
-    - Fork & Clone
-    - Install Dependencies
-    - Onboarding & Configuration
-    - Launch the Agent
+   - Fork & Clone
+   - Install Dependencies
+   - Onboarding & Configuration
+   - Launch the Agent
 6. **Onboarding Flow: CLI vs. Web UI**
-    - Core Steps (Same Under the Hood)
-    - LLM Setup
-    - Objectives & Character
-    - Adding Skills via Composio or API Keys
-    - Multiple LLM Model Support
+   - Core Steps (Same Under the Hood)
+   - LLM Setup
+   - Objectives & Character
+   - Adding Skills via Composio or API Keys
+   - Multiple LLM Model Support
 7. **Default Activities**
 8. **Using the Web UI**
-    - Configuring Your Character & Constraints
-    - Connecting Tools via OAuth (Composio)
-    - Launching and Monitoring the Agent
+   - Configuring Your Character & Constraints
+   - Connecting Tools via OAuth (Composio)
+   - Launching and Monitoring the Agent
 9. **Using the CLI**
-    - Re-running the Onboarding Wizard
-    - Starting the Agent from Terminal
+   - Re-running the Onboarding Wizard
+   - Starting the Agent from Terminal
 10. **Creating a New Skill for Solana-AgentKit (Manual Example)**
 11. **Why Keep the AI/Web UI Default?**
 12. **Extending & Creating Other Custom Activities**
@@ -66,25 +65,31 @@ You can choose to run everything from your terminal or via a web-based UI. Both 
 ## Features & Highlights
 
 - **Flexible Onboarding:**
+
   - CLI Wizard or Web UI flow to gather essential info—no duplication of effort.
   - Prevents you from starting until you’ve provided at least one LLM API key (or local config) and a minimal character setup.
 
 - **Multiple LLM Model Support:**
+
   - Provide one or more LLM API keys (OpenAI, GPT4All, or your custom provider).
   - Assign different models to tasks like code generation vs. daily analysis vs. activity selection.
 
 - **Composio:**
+
   - OAuth-based gateway to 250+ tools (Twitter, Slack, Google, etc.).
   - Built-in flows for quickly adding new “skills” from connected apps.
 
 - **Custom Skills:**
+
   - Easily add your own skill, e.g., solana-agent-kit, stable diffusion, or a Node.js microservice.
   - The default configuration can help you add manual API keys for tools not using Composio.
 
 - **Default Activities:**
+
   - Activities for analyzing daily logs, brainstorming new Activities, generating .py files.
 
 - **Configurable Constraints:**
+
   - E.g., “No more than 5 tweets per hour,” “Don’t create new tokens more than once a month.”
 
 - **Memory System & State Tracking:**
@@ -157,11 +162,13 @@ cd pippin-draft
 ### 2. Install Dependencies (this step can be skipped if you use GitHub codespaces or the provided dev container)
 
 First, install the UV package manager if not already installed:
+
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 Then create and activate your virtual environment:
+
 ```bash
 # Create and activate virtual environment
 uv venv
@@ -171,6 +178,7 @@ source .venv/bin/activate  # On Unix/MacOS
 ```
 
 Install the project dependencies:
+
 ```bash
 uv pip install -r requirements.txt
 ```
@@ -184,11 +192,13 @@ cd my_digital_being
 ```
 
 Copy the config_sample folder.
+
 ```bash
 cp config_sample config
 ```
 
 You can pick one of the following approaches:
+
 - **CLI:** `python -m tools.onboard`
 - **Web UI:** `python -m server` then open `http://localhost:8000` in your browser and follow the onboarding prompts.
 
@@ -270,9 +280,11 @@ All you need is to enable the correct skill(s) in `skills_config.json` and optio
 ## Default Activities
 
 1. **AnalyzeDailyActivity**
+
    - Reads recent memory, calls your LLM-of-choice, logs a short reflection.
 
 2. **SuggestNewActivities**
+
    - Brainstorms new tasks or expansions relevant to your objectives and constraints.
 
 3. **BuildOrUpdateActivity**
@@ -508,6 +520,7 @@ If you want to limit how often this token can be deployed, you can define constr
 (Now the system sees that `DeploySolanaTokenActivity` needs the `solana_agent` skill and has a 30-day cooldown.)
 
 ---
+
 ### 5. Restart or Reload
 
 The system auto-reloads new Activities. If you just created `activity_deploy_solana_token.py`, you can either restart the agent or wait for the hot-reload if configured. Once running, the being might eventually choose this Activity if it meets constraints, or you can force it by removing cooldowns or making it your only viable option.
@@ -534,13 +547,16 @@ Either way, once recognized, the new Activity is eligible for selection in the m
 ## Memory, State & Activity Selection
 
 ### Memory
+
 - **Short-term:** Recent logs or activity results (up to ~100).
 - **Long-term:** Older logs archived by category.
 
 ### State
+
 - Holds the being’s “energy,” “mood,” timestamps, or custom fields.
 
 ### ActivitySelector
+
 - Filters out activities that fail cooldown/skill constraints.
 - If multiple remain, calls an LLM to decide.
 - If none remain, might propose new activities to fill a gap.
