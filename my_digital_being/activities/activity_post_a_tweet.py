@@ -42,10 +42,11 @@ class PostTweetActivity(ActivityBase):
                     success=False, error="Failed to initialize chat skill"
                 )
 
-            # 2) Gather personality + recent tweets
+            # 2) Load system_prompt + twitter memory from acitivyt config, and personality + recent tweets
+            self._sync_activity_config()
             character_config = self._get_character_config(shared_data)
             personality_data = character_config.get("personality", {})
-            recent_tweets = self._get_recent_tweets(shared_data, limit=10)
+            recent_tweets = self._get_recent_tweets(shared_data, limit=self.num_activities_to_fetch)
 
             # 3) Generate tweet text with chat skill
             prompt_text = self._build_chat_prompt(personality_data, recent_tweets)
@@ -95,6 +96,29 @@ class PostTweetActivity(ActivityBase):
         except Exception as e:
             logger.error(f"Failed to post tweet: {e}", exc_info=True)
             return ActivityResult(success=False, error=str(e))
+
+    def _sync_activity_config(self):
+        """
+        synchronize activity config
+        """
+        # Load the config from the being
+        from framework.main import DigitalBeing
+        being = DigitalBeing()
+        being.initialize()
+        system_prompt = (
+            f"Write a new short tweet (under {self.max_length} chars), consistent with the above, "
+            f"but not repeating old tweets. Avoid hashtags or repeated phrases."
+        )
+        num_activities_to_fetch = 10
+        if "activity_constraints" in being.configs and \
+            "activities_config" in being.configs["activity_constraints"] and \
+            "PostTweetActivity" in being.configs["activity_constraints"]["activities_config"]:
+            activities_config = being.configs["activity_constraints"]["activities_config"]["PostTweetActivity"]
+            system_prompt = constraints_cfg["PostTweetActivity"].get("system_prompt", system_prompt)
+            num_activities_to_fetch = activities_config.get("num_activities_to_fetch", num_activities_to_fetch)
+        self.system_prompt = system_prompt
+        self.num_activities_to_fetch = num_activities_to_fetch
+
 
     def _get_character_config(self, shared_data) -> Dict[str, Any]:
         """
@@ -155,8 +179,7 @@ class PostTweetActivity(ActivityBase):
             f"{personality_str}\n\n"
             f"Here are recent tweets:\n"
             f"{last_tweets_str}\n\n"
-            f"Write a new short tweet (under 280 chars), consistent with the above, "
-            f"but not repeating old tweets. Avoid hashtags or repeated phrases.\n"
+            f"{self.system_prompt}\n"
         )
 
     def _post_tweet_via_composio(self, tweet_text: str) -> Dict[str, Any]:

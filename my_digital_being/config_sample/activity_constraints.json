@@ -66,9 +66,13 @@
       "enabled": false
     },
     "PostTweetActivity": {
+      "system_prompt": "Write a new short tweet (under 280 chars), consistent with the above, but not repeating old tweets. Avoid hashtags or repeated phrases.",
+      "num_activities_to_fetch": 10,
       "enabled": false
     },
     "PostRecentMemoriesTweetActivity": {
+      "system_prompt": "Please craft a short tweet (under 280 chars) that references these memories, reflects the personality and objectives, and ensures it's not repetitive or dull. Keep it interesting, cohesive, and mindful of the overall tone.",
+      "num_activities_to_fetch": 10,
       "enabled": false
     },
     "AnalyzeNewCommitsActivity": {

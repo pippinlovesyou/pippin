@@ -28,5 +28,14 @@
     "model_name": "openai/gpt-4o-mini",
     "required_api_keys": [],
     "api_key_mapping": {}
+  },
+  "twitter_posting": {
+    "enabled": true,
+    "required_api_keys": [
+      "TWITTER"
+    ],
+    "api_key_mapping": {
+      "TWITTER": "TWITTER_API_KEY"
+    }
   }
 }
