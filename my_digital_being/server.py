@@ -21,12 +21,15 @@ import websockets
 from websockets.server import serve
 from websockets.legacy.server import WebSocketServerProtocol
 
+# Initialize the logger with logging.INFO before importing other modules
+# to make sure INFO level logs are printed (Otherwise it gets set to WARN)
+logging.basicConfig(level=logging.INFO)
+
 # Import api_manager at top-level (not again inside any function)
 from framework.api_management import api_manager
 from framework.main import DigitalBeing
 from framework.skill_config import DynamicComposioSkills
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
