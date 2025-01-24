@@ -10,6 +10,7 @@
 
   // We'll store the loaded activity list globally so we can build checkboxes.
   let discoveredActivities = {};
+  let loadedConfigs;
 
   document.addEventListener('DOMContentLoaded', () => {
     // Insert a button in the overview tab for the wizard
@@ -141,6 +142,7 @@
       const charCfg = cfg.character_config || {};
       const skillCfg = cfg.skills_config || {};
       const constraintsCfg = cfg.activity_constraints || {};
+      loadedConfigs = cfg
 
       // Fill in the fields
       populateCharacterFields(charCfg);
@@ -308,7 +310,8 @@
         const checkboxId = `activity_checkbox_${moduleName}`;
         const boxEl = document.getElementById(checkboxId);
         const isChecked = boxEl ? boxEl.checked : true;
-        activities_config[className] = { "enabled": isChecked };
+        activities_config[className] = loadedConfigs.activity_constraints.activities_config[className]
+        activities_config[className].enabled = isChecked
       });
     }
 
