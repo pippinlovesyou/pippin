@@ -1229,7 +1229,7 @@ async function checkAuthMethods(appName) {
 
     let buttonsHtml = '<div class="auth-methods">';
     
-    if (authModes.includes('OAUTH2')) {
+    if (authModes.includes('OAUTH2') || authModes.includes('OAUTH1')) {
       buttonsHtml += `
         <button class="btn primary" onclick="startOAuthFlow('${appName}')">
           Connect with OAuth
@@ -1454,7 +1454,7 @@ async function testGetActionsForTwitter() {
   }
 }
 
-window.initiateOAuth = initiateOAuth;
+window.initiateOAuth = startOAuthFlow;
 window.closeApiKeyModal = closeApiKeyModal;
 window.submitApiKey = submitApiKey;
 window.toggleEditMode = toggleEditMode;

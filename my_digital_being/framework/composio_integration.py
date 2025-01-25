@@ -126,7 +126,7 @@ class ComposioManager:
             # Check if OAuth is supported
             auth_schemes = self._toolset.get_auth_schemes(app=app_info["key"])
             auth_modes = [scheme.auth_mode for scheme in auth_schemes]
-            if "OAUTH2" not in auth_modes:
+            if "OAUTH2" not in auth_modes and "OAUTH1" not in auth_modes:
                 return {
                     "success": False,
                     "error": "OAuth is not supported for this app",
@@ -137,7 +137,7 @@ class ComposioManager:
                 redirect_url=redirect_url,
                 entity_id=self._entity_id,
                 app=app_info["key"],
-                auth_scheme="OAUTH2",
+                auth_scheme=auth_modes[0],
             )
 
             conn_id = getattr(connection_req, "connectionId", None)
