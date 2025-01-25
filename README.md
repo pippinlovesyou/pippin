@@ -1,7 +1,7 @@
 <!-- ![Pippin, Autonomous Being Framework](media/pippin.jpg) -->
 <img src="media/pippin.jpg" alt="Alt text" width="300" height="200" >
 
-
+testing CI
 # Pippin, The Digital Being Framework for Autonomous Agents
 
 Welcome to Pippin — a flexible, open-source framework to create a digital “being” that:
