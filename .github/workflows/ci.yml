@@ -51,7 +51,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
-          ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
+          if [ ! -L /usr/bin/chromedriver ]; then
+            sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
+          fi
+
 
       # 7. Set Environment Variables
       - name: Set Environment Variables
