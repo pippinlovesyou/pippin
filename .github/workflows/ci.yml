@@ -4,9 +4,9 @@ name: Simple CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'  # Specify the Python version your project uses
+          python-version: "3.9"  # Specify the Python version your project uses
 
       # 3. Install Dependencies
       - name: Install Dependencies
@@ -40,14 +40,24 @@ jobs:
         run: |
           # Replace API keys in character_config.json with blank or dummy values
           sed -i 's/"COMPOSIO_API_KEY": ".*"/"COMPOSIO_API_KEY": ""/' my_digital_being/config/character_config.json
-          
+
           # Replace API keys in skills_config.json with blank or dummy values
           sed -i 's/"LITELLM_API_KEY": ".*"/"LITELLM_API_KEY": ""/' my_digital_being/config/skills_config.json
           sed -i 's/"OPENAI_API_KEY": ".*"/"OPENAI_API_KEY": ""/' my_digital_being/config/skills_config.json
           sed -i 's/"TWITTER_API_KEY": ".*"/"TWITTER_API_KEY": ""/' my_digital_being/config/skills_config.json
-          # Add more sed commands as necessary based on your config files
 
-      # 6. Install and Use the 'tree' Command for Debugging
+      # 6. Install Selenium and Chrome Dependencies
+      - name: Install Chrome and Chromedriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+          ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
+
+      # 7. Set Environment Variables
+      - name: Set Environment Variables
+        run: echo "COMPOSIO_API_KEY=dummy_value" >> $GITHUB_ENV
+
+      # 8. Install and Use the 'tree' Command for Debugging
       - name: Install tree
         run: |
           sudo apt-get update
@@ -58,8 +68,12 @@ jobs:
           echo "Repository structure:"
           tree -L 3
 
-      # 7. Compile Python Files
+      # 9. Compile Python Files
       - name: Compile Python Files
         run: |
           python -m compileall my_digital_being/
 
+      # 10. Run Tests
+      - name: Run Tests
+        run: |
+          pytest tests/ --maxfail=5 --disable-warnings
