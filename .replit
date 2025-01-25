@@ -1,4 +1,5 @@
-modules = ["python-3.11"]
+modules = ["python-3.11", "nodejs-20", "web", "bash"]
+run = "python my_digital_being/server.py"
 
 [nix]
 channel = "stable-24_05"
