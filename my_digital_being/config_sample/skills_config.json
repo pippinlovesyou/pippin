@@ -1,0 +1,32 @@
+{
+  "image_generation": {
+    "enabled": true,
+    "max_generations_per_day": 50,
+    "supported_formats": [
+      "png",
+      "jpg"
+    ],
+    "required_api_keys": [
+      "OPENAI"
+    ],
+    "api_key_mapping": {
+      "OPENAI": "OPENAI_API_KEY"
+    }
+  },
+  "openai_chat": {
+    "enabled": true,
+    "required_api_keys": [
+      "OPENAI"
+    ],
+    "api_key_mapping": {
+      "OPENAI": "OPENAI_API_KEY"
+    }
+  },
+  "default_llm_skill": "lite_llm",
+  "lite_llm": {
+    "enabled": true,
+    "model_name": "openai/gpt-4o-mini",
+    "required_api_keys": [],
+    "api_key_mapping": {}
+  }
+}
