@@ -1,5 +1,3 @@
-# .github/workflows/ci.yml
-
 name: Simple CI Pipeline
 
 on:
@@ -10,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # Fixed Ubuntu version to ensure consistency
+    runs-on: ubuntu-22.04
 
     steps:
       # 1. Checkout Repository
@@ -21,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"  # Specify the Python version your project uses
+          python-version: "3.9"
 
       # 3. Install Dependencies
       - name: Install Dependencies
@@ -38,46 +36,26 @@ jobs:
       # 5. Set Dummy API Keys in Config Files
       - name: Set Dummy API Keys
         run: |
-          # Replace API keys in character_config.json with blank or dummy values
           sed -i 's/"COMPOSIO_API_KEY": ".*"/"COMPOSIO_API_KEY": ""/' my_digital_being/config/character_config.json
-
-          # Replace API keys in skills_config.json with blank or dummy values
           sed -i 's/"LITELLM_API_KEY": ".*"/"LITELLM_API_KEY": ""/' my_digital_being/config/skills_config.json
           sed -i 's/"OPENAI_API_KEY": ".*"/"OPENAI_API_KEY": ""/' my_digital_being/config/skills_config.json
           sed -i 's/"TWITTER_API_KEY": ".*"/"TWITTER_API_KEY": ""/' my_digital_being/config/skills_config.json
 
-      # 6. Install Selenium and Chrome Dependencies
+      # 6. Install Chrome and Chromedriver
       - name: Install Chrome and Chromedriver
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
           if [ -L /usr/bin/chromedriver ]; then
-            sudo rm /usr/bin/chromedriver  # Remove the existing link if it exists
+            sudo rm /usr/bin/chromedriver
           fi
           sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
-
 
       # 7. Set Environment Variables
       - name: Set Environment Variables
         run: echo "COMPOSIO_API_KEY=dummy_value" >> $GITHUB_ENV
 
-      # 8. Install and Use the 'tree' Command for Debugging
-      - name: Install tree
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tree
-
-      - name: List Directory Structure
-        run: |
-          echo "Repository structure:"
-          tree -L 3
-
-      # 9. Compile Python Files
-      - name: Compile Python Files
-        run: |
-          python -m compileall my_digital_being/
-
-      # 10. Run Tests
+      # 8. Run Tests
       - name: Run Tests
         run: |
           pytest tests/ --maxfail=5 --disable-warnings
