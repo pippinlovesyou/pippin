@@ -46,7 +46,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
+          # Check if the symbolic link exists and remove it if necessary
           if [ -L /usr/bin/chromedriver ]; then
+            echo "Removing existing symbolic link for chromedriver"
+            sudo rm /usr/bin/chromedriver
+          elif [ -e /usr/bin/chromedriver ]; then
+            echo "Removing existing file at /usr/bin/chromedriver"
             sudo rm /usr/bin/chromedriver
           fi
           sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
