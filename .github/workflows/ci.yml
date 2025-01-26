@@ -25,16 +25,18 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
+          # Ensure all your requirements are listed in requirements.txt
+          # Example (installing manually):
           pip install -r requirements.txt
-          pip install selenium  # Ensure Selenium is installed
+          pip install selenium pytest-asyncio pytest requests aiohttp
 
-      # 4. Copy Sample Configs to Config Directory
+      # 4. Copy Sample Configs to Config Directory (Adjust as needed)
       - name: Copy Sample Configs
         run: |
           mkdir -p my_digital_being/config
           cp my_digital_being/config_sample/*.json my_digital_being/config/
 
-      # 5. Set Dummy API Keys in Config Files
+      # 5. Set Dummy API Keys in Config Files (Adjust if needed)
       - name: Set Dummy API Keys
         run: |
           sed -i 's/"COMPOSIO_API_KEY": ".*"/"COMPOSIO_API_KEY": ""/' my_digital_being/config/character_config.json
@@ -47,6 +49,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
+          # Remove or replace existing chromedriver symlink, if any
           if [ -L /usr/bin/chromedriver ]; then
             sudo rm /usr/bin/chromedriver
           elif [ -e /usr/bin/chromedriver ]; then
@@ -54,7 +57,7 @@ jobs:
           fi
           sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
 
-      # 7. Set Environment Variables
+      # 7. Set Environment Variables for Testing
       - name: Set Environment Variables
         run: echo "COMPOSIO_API_KEY=dummy_value" >> $GITHUB_ENV
 
