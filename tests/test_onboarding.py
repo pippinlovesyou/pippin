@@ -1,7 +1,6 @@
-import subprocess
-import time
-from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def test_onboarding_modal():
     # Start the server in a subprocess
@@ -25,15 +24,13 @@ def test_onboarding_modal():
         # Navigate to the server's root URL
         driver.get("http://localhost:8000")
 
-        # Find and click the button in the div with id "overview-tab"
-        button = driver.find_element(By.CSS_SELECTOR, "#overview-tab button")
+        # Wait for the button to be clickable and click it
+        wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds
+        button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#overview-tab button")))
         button.click()
 
-        # Wait briefly for modal content to display
-        time.sleep(2)
-
-        # Confirm the modal-content div is displayed
-        modal_content = driver.find_element(By.CLASS_NAME, "modal-content")
+        # Wait for the modal-content to become visible
+        modal_content = wait.until(EC.visibility_of_element_located((By.CLASS_NAME, "modal-content")))
         assert modal_content.is_displayed(), "Modal content is not displayed"
 
     finally:
@@ -41,6 +38,6 @@ def test_onboarding_modal():
         process.terminate()
         process.wait()
 
-        # Quit the WebDriver only if initialized
-        if 'driver' in locals():
+        # Quit the WebDriver
+        if "driver" in locals():
             driver.quit()
