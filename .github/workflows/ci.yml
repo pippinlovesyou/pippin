@@ -26,6 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Ensure all your requirements are listed in requirements.txt
+          # Example (installing manually):
           pip install -r requirements.txt
           pip install selenium pytest-asyncio pytest requests aiohttp
 
@@ -39,6 +40,9 @@ jobs:
       - name: Set Dummy API Keys
         run: |
           sed -i 's/"COMPOSIO_API_KEY": ".*"/"COMPOSIO_API_KEY": ""/' my_digital_being/config/character_config.json
+          sed -i 's/"LITELLM_API_KEY": ".*"/"LITELLM_API_KEY": ""/' my_digital_being/config/skills_config.json
+          sed -i 's/"OPENAI_API_KEY": ".*"/"OPENAI_API_KEY": ""/' my_digital_being/config/skills_config.json
+          sed -i 's/"TWITTER_API_KEY": ".*"/"TWITTER_API_KEY": ""/' my_digital_being/config/skills_config.json
 
       # 6. Install Chrome and Chromedriver
       - name: Install Chrome and Chromedriver
@@ -53,9 +57,9 @@ jobs:
           fi
           sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
 
-      # 7. Provide COMPOSIO_API_KEY from GitHub Secrets
-      - name: Provide COMPOSIO_API_KEY
-        run: echo "COMPOSIO_API_KEY=${{ secrets.COMPOSIO_API_KEY }}" >> $GITHUB_ENV
+      # 7. Set Environment Variables for Testing
+      - name: Set Environment Variables
+        run: echo "COMPOSIO_API_KEY=dummy_value" >> $GITHUB_ENV
 
       # 8. Run Tests
       - name: Run Tests
