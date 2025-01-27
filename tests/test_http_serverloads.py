@@ -25,8 +25,7 @@ def test_http_server_loads():
         process.terminate()
         process.wait()
 
+        # Print logs for debugging
         stdout, stderr = process.communicate()
-        print("Server stdout:")
-        print(stdout.decode())
-        print("Server stderr:")
-        print(stderr.decode())
+        print("Server stdout:", stdout.decode())
+        print("Server stderr:", stderr.decode())

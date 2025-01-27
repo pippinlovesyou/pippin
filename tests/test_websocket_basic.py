@@ -9,7 +9,7 @@ from aiohttp import ClientSession
 @pytest.mark.asyncio
 async def test_websocket_basic():
     """
-    Start the server, then test the WebSocket in one go.
+    Start the server, then test basic WebSocket connectivity.
     """
     process = subprocess.Popen(
         ["python", "my_digital_being/server.py"],
@@ -23,17 +23,15 @@ async def test_websocket_basic():
     try:
         async with ClientSession() as session:
             async with session.ws_connect("ws://localhost:8000/ws") as ws:
-                # Send a JSON message (like a "ping" or minimal test)
+                # Send a simple "ping"-style message
                 await ws.send_json({"type": "ping"})
                 response = await ws.receive_json()
 
-                # Assert we got a valid JSON response
+                # Ensure we got valid JSON back
                 assert isinstance(response, dict), "Expected a JSON object from server"
     finally:
         process.terminate()
         process.wait()
         stdout, stderr = process.communicate()
-        print("Server stdout:")
-        print(stdout.decode())
-        print("Server stderr:")
-        print(stderr.decode())
+        print("Server stdout:", stdout.decode())
+        print("Server stderr:", stderr.decode())
