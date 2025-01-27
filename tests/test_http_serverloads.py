@@ -7,7 +7,7 @@ import pytest
 
 def test_http_server_loads():
     """
-    Start the server, check if HTTP is available, then stop.
+    Start the server, ensure it returns 200 OK at root.
     """
     process = subprocess.Popen(
         ["python", "my_digital_being/server.py"],
@@ -15,17 +15,16 @@ def test_http_server_loads():
         stderr=subprocess.PIPE
     )
 
-    # Give the server time to start (increase if needed)
+    # Wait for server to spin up
     time.sleep(5)
 
     try:
-        response = requests.get("http://localhost:8000")
-        assert response.status_code == 200, "Server didn't return 200 on /"
+        resp = requests.get("http://localhost:8000")
+        assert resp.status_code == 200, "Server did not return 200 at /"
     finally:
         process.terminate()
         process.wait()
 
-        # Print logs for debugging
         stdout, stderr = process.communicate()
         print("Server stdout:", stdout.decode())
         print("Server stderr:", stderr.decode())
