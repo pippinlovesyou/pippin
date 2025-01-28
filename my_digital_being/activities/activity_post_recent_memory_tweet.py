@@ -49,7 +49,8 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
                     success=False, error="Failed to initialize chat skill"
                 )
 
-            # 2) Load personality + objectives from character config
+            # 2) Load system_prompt + twitter memory from acitivyt config, and personality + objectives from character config
+            self._sync_activity_config()
             character_config = self._get_character_config(shared_data)
             personality_data = character_config.get("personality", {})
             objectives_data = character_config.get("objectives", {})
@@ -163,7 +164,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
             memory_obj = being.memory
 
         # Search in the last ~10 runs for this activity
-        recent_activities = memory_obj.get_recent_activities(limit=10, offset=0)
+        recent_activities = memory_obj.get_recent_activities(limit=self.num_activities_to_fetch, offset=0)
         for act in recent_activities:
             if act.get(
                 "activity_type"
@@ -172,6 +173,29 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
                 if used:
                     return used
         return []
+
+    def _sync_activity_config(self):
+        """
+        synchronize activity config
+        """
+        # Load the config from the being
+        from framework.main import DigitalBeing
+        being = DigitalBeing()
+        being.initialize()
+        system_prompt = (
+            f"Please craft a short tweet (under {self.max_length} chars) that references these memories, "
+            f"reflects the personality and objectives, and ensures it's not repetitive or dull. "
+            f"Keep it interesting, cohesive, and mindful of the overall tone.\n"
+        )
+        num_activities_to_fetch = 10
+        if "activity_constraints" in being.configs and \
+            "activities_config" in being.configs["activity_constraints"] and \
+            "PostRecentMemoriesTweetActivity" in being.configs["activity_constraints"]["activities_config"]:
+            activities_config = being.configs["activity_constraints"]["activities_config"]["PostRecentMemoriesTweetActivity"]
+            system_prompt = activities_config.get("system_prompt", system_prompt)
+            num_activities_to_fetch = activities_config.get("num_activities_to_fetch", num_activities_to_fetch)
+        self.system_prompt = system_prompt
+        self.num_activities_to_fetch = num_activities_to_fetch
 
     def _get_character_config(self, shared_data) -> Dict[str, Any]:
         """
@@ -258,9 +282,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
             f"{objectives_str}\n\n"
             f"Here are some new memories:\n"
             f"{memories_str}\n\n"
-            f"Please craft a short tweet (under 280 chars) that references these memories, "
-            f"reflects the personality and objectives, and ensures it's not repetitive or dull. "
-            f"Keep it interesting, cohesive, and mindful of the overall tone.\n"
+            f"{self.system_prompt}\n"
         )
         return prompt
 
