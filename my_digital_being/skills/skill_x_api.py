@@ -1,24 +1,21 @@
 """X (Twitter) API integration skill."""
 
-import os
 import logging
-from typing import Dict, Any, Optional
-import requests
-from requests_oauthlib import OAuth1Session
-from framework.skill_config import SkillConfig
-from framework.api_management import api_manager
+import base64
+import aiohttp
+from typing import Dict, Any, Optional, List
+from framework.composio_integration import composio_manager
 
 logger = logging.getLogger(__name__)
 
 
 class XAPIError(Exception):
     """Custom exception for X API errors"""
-
     pass
 
 
 class XAPISkill:
-    """Skill for interacting with X (Twitter) API."""
+    """Skill for interacting with X (Twitter) API via Composio."""
 
     def __init__(self, config: Dict[str, Any]):
         """Initialize skill configuration."""
@@ -27,129 +24,128 @@ class XAPISkill:
         self.rate_limit = config.get("rate_limit", 100)
         self.cooldown_period = config.get("cooldown_period", 300)
         self.posts_count = 0
-        self.skill_config = SkillConfig("twitter_posting")
-        self.oauth_session: Optional[OAuth1Session] = None
+        self.twitter_username = config.get("twitter_username", "YourUserName")  # Get from config
+        
+        # Composio action names
+        self.post_action = "TWITTER_CREATION_OF_A_POST"
+        self.media_upload_action = "TWITTER_MEDIA_UPLOAD_MEDIA"
 
-    async def initialize(self) -> bool:
-        """Initialize the X API skill with required credentials."""
-        try:
-            # Register required API keys
-            required_keys = [
-                "API_KEY",
-                "API_SECRET",
-                "ACCESS_TOKEN",
-                "ACCESS_TOKEN_SECRET",
-            ]
-            api_manager.register_required_keys("twitter_posting", required_keys)
-
-            # Check for missing credentials
-            missing_keys = []
-            for key in required_keys:
-                if not self.skill_config.get_api_key(key):
-                    missing_keys.append(key)
-
-            if missing_keys:
-                logger.info(f"Missing X API credentials: {missing_keys}")
-                return False  # Let the front-end handle credential requests
-
-            # Try to authenticate if we have all credentials
-            return await self.authenticate()
-
-        except Exception as e:
-            logger.error(f"Failed to initialize X API skill: {e}")
-            return False
+        if not self.twitter_username:
+            logger.warning("No twitter_username provided in config")
 
     def can_post(self) -> bool:
         """Check if posting is allowed based on rate limits."""
         return self.enabled and self.posts_count < self.rate_limit
 
-    async def authenticate(self) -> bool:
-        """Set up OAuth session for X API."""
+    async def upload_media(self, media_url: str) -> Optional[str]:
+        """
+        Download image from URL and upload to Twitter via Composio.
+        Returns media ID if successful, None otherwise.
+        """
         try:
-            api_key = self.skill_config.get_api_key("API_KEY")
-            api_secret = self.skill_config.get_api_key("API_SECRET")
-            access_token = self.skill_config.get_api_key("ACCESS_TOKEN")
-            access_token_secret = self.skill_config.get_api_key("ACCESS_TOKEN_SECRET")
-
-            if not all([api_key, api_secret, access_token, access_token_secret]):
-                logger.error("Missing required X API credentials")
-                return False
-
-            self.oauth_session = OAuth1Session(
-                client_key=api_key,
-                client_secret=api_secret,
-                resource_owner_key=access_token,
-                resource_owner_secret=access_token_secret,
+            logger.info(f"Downloading media from URL: {media_url}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(media_url) as response:
+                    if response.status != 200:
+                        logger.warning(f"Failed to download image from {media_url}: {response.status}")
+                        return None
+                        
+                    image_data = await response.read()
+            
+            # Convert to base64
+            base64_image = base64.b64encode(image_data).decode('utf-8')
+            
+            # Extract filename from URL or use default
+            filename = media_url.split('/')[-1].split('?')[0] or 'image.png'
+            
+            # Upload to Twitter via Composio
+            logger.info(f"Uploading media to Twitter: {filename}")
+            upload_response = composio_manager._toolset.execute_action(
+                action=self.media_upload_action,
+                params={
+                    "media": {
+                        "name": filename,
+                        "content": base64_image
+                    }
+                },
+                entity_id="MyDigitalBeing"
             )
-            return True
-
+            
+            if upload_response.get("successful") or upload_response.get("successfull"):
+                media_id = upload_response.get("media_id") or upload_response.get("data", {}).get("media_id")
+                if media_id:
+                    logger.info(f"Successfully uploaded image to Twitter, media_id: {media_id}")
+                    return media_id
+            
+            logger.warning(f"Failed to upload image to Twitter: {upload_response.get('error', 'Unknown error')}")
+            return None
+                
         except Exception as e:
-            logger.error(f"Authentication failed: {e}")
-            return False
+            logger.error(f"Error uploading image to Twitter: {e}", exc_info=True)
+            return None
 
-    async def post_tweet(
-        self, text: str, media_path: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Post a tweet with optional media attachment."""
+    async def post_tweet(self, text: str, media_urls: List[str] = None) -> Dict[str, Any]:
+        """
+        Post a tweet with optional media attachments using Composio.
+        Handles media upload internally if media_urls are provided.
+        Returns dict with success status and tweet data.
+        """
         if not self.can_post():
             return {"success": False, "error": "Rate limit exceeded or skill disabled"}
 
-        if not self.oauth_session:
-            if not await self.authenticate():
-                return {"success": False, "error": "Authentication failed"}
-
         try:
-            # Handle media upload if provided
-            media_id = None
-            if media_path and os.path.exists(media_path):
-                media_id = await self._upload_media(media_path)
+            # First handle media uploads if any
+            media_ids = []
+            if media_urls:
+                for url in media_urls:
+                    media_id = await self.upload_media(url)
+                    if media_id:
+                        media_ids.append(media_id)
 
-            # Prepare tweet payload
-            post_payload = {"text": text}
-            if media_id:
-                post_payload["media"] = {"media_ids": [media_id]}
-
-            # Post tweet
-            response = self.oauth_session.post(
-                "https://api.twitter.com/2/tweets", json=post_payload
+            # Now post the tweet with any media IDs we collected
+            logger.info(
+                f"Posting tweet via Composio action='{self.post_action}', "
+                f"text='{text[:50]}...', media_count={len(media_ids)}"
             )
 
-            if response.status_code != 201:
-                error_data = response.json() if response.text else {}
-                raise XAPIError(f"Failed to post tweet: {error_data}")
+            params = {"text": text}
+            if media_ids:
+                params["media__media__ids"] = media_ids
 
-            self.posts_count += 1
-            return {
-                "success": True,
-                "tweet_id": response.json()["data"]["id"],
-                "content": text,
-            }
+            response = composio_manager._toolset.execute_action(
+                action=self.post_action,
+                params=params,
+                entity_id="MyDigitalBeing",
+            )
+
+            # The actual success key is "successfull" (with 2 Ls)
+            success_val = response.get("success", response.get("successfull"))
+            if success_val:
+                data_section = response.get("data", {})
+                nested_data = data_section.get("data", {})
+                tweet_id = nested_data.get("id")
+                
+                tweet_link = (
+                    f"https://twitter.com/{self.twitter_username}/status/{tweet_id}"
+                    if tweet_id else None
+                )
+                
+                self.posts_count += 1
+                return {
+                    "success": True,
+                    "tweet_id": tweet_id,
+                    "content": text,
+                    "tweet_link": tweet_link,
+                    "media_count": len(media_ids)
+                }
+            else:
+                error_msg = response.get("error", "Unknown or missing success key")
+                logger.error(f"Tweet posting failed: {error_msg}")
+                return {"success": False, "error": error_msg}
 
         except Exception as e:
-            logger.error(f"Failed to post tweet: {e}")
+            logger.error(f"Failed to post tweet: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
-
-    async def _upload_media(self, media_path: str) -> Optional[str]:
-        """Upload media to X and return media_id."""
-        try:
-            with open(media_path, "rb") as f:
-                files = {"media": f}
-                upload_response = self.oauth_session.post(
-                    "https://upload.twitter.com/1.1/media/upload.json", files=files
-                )
-
-            if upload_response.status_code != 200:
-                logger.error(
-                    f"Failed to upload media. Status code: {upload_response.status_code}"
-                )
-                return None
-
-            media_data = upload_response.json()
-            return media_data.get("media_id_string")
-
-        except Exception as e:
-            logger.error(f"Media upload failed: {e}")
-            return None
 
     def reset_counts(self):
         """Reset the post counter."""

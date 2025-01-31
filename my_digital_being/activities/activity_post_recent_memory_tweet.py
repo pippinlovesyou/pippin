@@ -6,6 +6,7 @@ from framework.activity_decorator import activity, ActivityBase, ActivityResult
 from framework.api_management import api_manager
 from framework.memory import Memory
 from skills.skill_chat import chat_skill
+from skills.skill_x_api import XAPISkill
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
     def __init__(self, num_activities_to_fetch: int = 10):
         super().__init__()
         self.max_length = 280
-        self.composio_action = "TWITTER_CREATION_OF_A_POST"
         self.twitter_username = "YourUserName"
 
         # Activity types to ignore in memory results
@@ -88,9 +88,8 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
                 new_memories=new_memories,
             )
 
-            # 6) Extract drawing URLs and upload to Twitter media
+            # 6) Extract drawing URLs from memories
             drawing_urls = self._extract_drawing_urls(new_memories)
-            media_ids = await self._upload_drawings_to_twitter(drawing_urls)
             
             # 7) Use chat skill to generate the tweet text
             chat_response = await chat_skill.get_chat_completion(
@@ -108,8 +107,12 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
             if len(tweet_text) > self.max_length:
                 tweet_text = tweet_text[: self.max_length - 3] + "..."
 
-            # 8) Post to Twitter via Composio
-            post_result = self._post_tweet_via_composio(tweet_text, media_ids)
+            # 8) Post to Twitter via X API with any extracted images
+            x_api = XAPISkill({
+                "enabled": True,
+                "twitter_username": self.twitter_username
+            })
+            post_result = await x_api.post_tweet(tweet_text, drawing_urls)
             if not post_result["success"]:
                 error_msg = post_result.get(
                     "error", "Unknown error posting tweet via Composio"
@@ -141,6 +144,7 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
                     "prompt_used": prompt_text,
                     "model": chat_response["data"].get("model"),
                     "finish_reason": chat_response["data"].get("finish_reason"),
+                    "image_count": len(drawing_urls),
                 },
             )
 
@@ -264,42 +268,6 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
         )
         return prompt
 
-    def _post_tweet_via_composio(self, tweet_text: str, media_ids: List[str]) -> Dict[str, Any]:
-        """
-        Post tweet via Composio with optional media_ids.
-        """
-        try:
-            from framework.composio_integration import composio_manager
-
-            logger.info(
-                f"Posting tweet via Composio action='{self.composio_action}', text='{tweet_text[:50]}...', media_count={len(media_ids)}"
-            )
-
-            response = composio_manager._toolset.execute_action(
-                action=self.composio_action,
-                params={
-                    "text": tweet_text, 
-                    "media__media__ids": media_ids if media_ids else None
-                },
-                entity_id="MyDigitalBeing",
-            )
-
-            success_val = response.get("success", response.get("successfull"))
-            if success_val:
-                data_section = response.get("data", {})
-                nested_data = data_section.get("data", {})
-                tweet_id = nested_data.get("id")
-                return {"success": True, "tweet_id": tweet_id}
-            else:
-                return {
-                    "success": False,
-                    "error": response.get("error", "Unknown or missing success key"),
-                }
-
-        except Exception as e:
-            logger.error(f"Error in Composio tweet post: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
-
     def _extract_drawing_urls(self, memories: List[str]) -> List[str]:
         """
         Extract URLs from all DrawActivity entries in memories.
@@ -329,65 +297,3 @@ class PostRecentMemoriesTweetActivity(ActivityBase):
                     continue
         
         return drawing_urls
-
-    async def _upload_drawings_to_twitter(self, drawing_urls: List[str]) -> List[str]:
-        """
-        Downloads images from URLs and uploads them to Twitter via Composio.
-        Returns a list of Twitter media IDs.
-        """
-        import aiohttp
-        import base64
-        from framework.composio_integration import composio_manager
-        
-        media_ids = []
-        
-        if not drawing_urls:
-            return media_ids
-            
-        async with aiohttp.ClientSession() as session:
-            for url in drawing_urls:
-                try:
-                    # Download image
-                    async with session.get(url) as response:
-                        if response.status != 200:
-                            logger.warning(f"Failed to download image from {url}: {response.status}")
-                            continue
-                            
-                        image_data = await response.read()
-                        
-                    # Convert to base64
-                    base64_image = base64.b64encode(image_data).decode('utf-8')
-                    
-                    # Extract filename from URL or use default
-                    filename = url.split('/')[-1].split('?')[0] or 'image.png'
-                    
-                    # Upload to Twitter via Composio
-                    upload_response = composio_manager._toolset.execute_action(
-                        action="TWITTER_MEDIA_UPLOAD_MEDIA",
-                        params={
-                            "media": {
-                                "name": filename,
-                                "content": base64_image
-                            }
-                        },
-                        entity_id="MyDigitalBeing"
-                    )
-                    
-                    # Composio returns 'successfull' instead of 'successful'
-                    if upload_response.get("successful") or upload_response.get("successfull"):
-                        media_id = upload_response.get("media_id") or upload_response.get("data", {}).get("media_id")
-                        if media_id:
-                            media_ids.append(media_id)
-                            logger.info(f"Successfully uploaded image to Twitter, media_id: {media_id}")
-                        else:
-                            logger.warning(f"Upload succeeded but no media_id returned. Response: {upload_response}")
-                    else:
-                        error = upload_response.get("error", "Unknown error")
-                        logger.warning(f"Failed to upload image to Twitter: {error}")
-                        
-                except Exception as e:
-                    logger.error(f"Error uploading image to Twitter: {e}", exc_info=True)
-                    continue
-                  
-        logger.debug(f"Uploaded drawing URLs to Twitter media: {media_ids}")     
-        return media_ids

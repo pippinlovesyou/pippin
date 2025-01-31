@@ -1,10 +1,12 @@
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 from framework.activity_decorator import activity, ActivityBase, ActivityResult
 from framework.api_management import api_manager
 from framework.memory import Memory
 from skills.skill_chat import chat_skill
+from skills.skill_generate_image import ImageGenerationSkill
+from skills.skill_x_api import XAPISkill
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +14,8 @@ logger = logging.getLogger(__name__)
 @activity(
     name="post_a_tweet",
     energy_cost=0.4,
-    cooldown=10000,  # 1 hour
-    required_skills=["twitter_posting"],
+    cooldown=3600,  # 1 hour
+    required_skills=["twitter_posting", "image_generation"],
 )
 class PostTweetActivity(ActivityBase):
     """
@@ -26,11 +28,13 @@ class PostTweetActivity(ActivityBase):
     def __init__(self):
         super().__init__()
         self.max_length = 280
-        # The Composio action name from your logs
-        self.composio_action = "TWITTER_CREATION_OF_A_POST"
         # If you know your Twitter username, you can embed it in the link
         # or fetch it dynamically. Otherwise, substitute accordingly:
         self.twitter_username = "YourUserName"
+        # set this to True if you want to generate an image for the tweet
+        self.image_generation_enabled = False
+        self.default_size = (1024, 1024)  # Added for image generation
+        self.default_format = "png"  # Added for image generation
 
     async def execute(self, shared_data) -> ActivityResult:
         try:
@@ -61,8 +65,18 @@ class PostTweetActivity(ActivityBase):
             if len(tweet_text) > self.max_length:
                 tweet_text = tweet_text[: self.max_length - 3] + "..."
 
-            # 4) Post the tweet via Composio
-            post_result = self._post_tweet_via_composio(tweet_text)
+            # 4) Generate an image based on the tweet text
+            if self.image_generation_enabled:
+                image_prompt, media_urls = await self._generate_image_for_tweet(tweet_text, personality_data)
+            else:
+                image_prompt, media_urls = None, []
+
+            # 5) Post the tweet via X API
+            x_api = XAPISkill({
+                "enabled": True,
+                "twitter_username": self.twitter_username
+            })
+            post_result = await x_api.post_tweet(tweet_text, media_urls)
             if not post_result["success"]:
                 error_msg = post_result.get(
                     "error", "Unknown error posting tweet via Composio"
@@ -77,7 +91,7 @@ class PostTweetActivity(ActivityBase):
                 else None
             )
 
-            # 5) Return success, adding link & prompt in metadata
+            # 6) Return success, adding link & prompt in metadata
             logger.info(f"Successfully posted tweet: {tweet_text[:50]}...")
             return ActivityResult(
                 success=True,
@@ -88,7 +102,9 @@ class PostTweetActivity(ActivityBase):
                     "model": chat_response["data"].get("model"),
                     "finish_reason": chat_response["data"].get("finish_reason"),
                     "tweet_link": tweet_link,
-                    "prompt_used": prompt_text,  # <--- includes the full prompt
+                    "prompt_used": prompt_text,
+                    "image_prompt_used": image_prompt,
+                    "image_count": len(media_urls),
                 },
             )
 
@@ -159,38 +175,37 @@ class PostTweetActivity(ActivityBase):
             f"but not repeating old tweets. Avoid hashtags or repeated phrases.\n"
         )
 
-    def _post_tweet_via_composio(self, tweet_text: str) -> Dict[str, Any]:
+    def _build_image_prompt(self, tweet_text: str, personality: Dict[str, Any]) -> str:
+        personality_str = "\n".join(f"{t}: {v}" for t, v in personality.items())
+        return f"Our digital being has these personality traits:\n" \
+               f"{personality_str}\n\n" \
+               f"And is creating a tweet with the text: {tweet_text}\n\n" \
+               f"Generate an image that represents the story of the tweet and reflects the personality traits. Do not include the tweet text in the image."
+
+    async def _generate_image_for_tweet(self, tweet_text: str, personality_data: Dict[str, Any]) -> Tuple[str, List[str]]:
         """
-        Post a tweet using the "Creation of a post" Composio action.
-        The response returns {'successfull': True, ...}, not 'success'.
-        We'll check 'successfull' or fallback if needed.
+        Generate an image for the tweet and upload it to Twitter.
+        Returns a tuple of (image_prompt, media_urls).
+        If generation fails, returns (None, []).
         """
-        try:
-            from framework.composio_integration import composio_manager
+        logger.info("Decided to generate an image for tweet")
+        image_skill = ImageGenerationSkill({
+            "enabled": True,
+            "max_generations_per_day": 50,
+            "supported_formats": ["png", "jpg"],
+        })
 
-            logger.info(
-                f"Posting tweet via Composio action='{self.composio_action}', text='{tweet_text[:50]}...'"
+        if await image_skill.can_generate():
+            image_prompt = self._build_image_prompt(tweet_text, personality_data)
+            image_result = await image_skill.generate_image(
+                prompt=image_prompt,
+                size=self.default_size,
+                format=self.default_format
             )
-
-            response = composio_manager._toolset.execute_action(
-                action=self.composio_action,
-                params={"text": tweet_text},
-                entity_id="MyDigitalBeing",
-            )
-
-            # The actual success key is "successfull" (with 2 Ls)
-            success_val = response.get("success", response.get("successfull"))
-            if success_val:
-                data_section = response.get("data", {})
-                nested_data = data_section.get("data", {})
-                tweet_id = nested_data.get("id")
-                return {"success": True, "tweet_id": tweet_id}
-            else:
-                return {
-                    "success": False,
-                    "error": response.get("error", "Unknown or missing success key"),
-                }
-
-        except Exception as e:
-            logger.error(f"Error in Composio tweet post: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+            
+            if image_result.get("success") and image_result.get("image_data", {}).get("url"):
+                return image_prompt, [image_result["image_data"]["url"]]
+        else:
+            logger.warning("Image generation not available, proceeding with text-only tweet")
+        
+        return None, []
