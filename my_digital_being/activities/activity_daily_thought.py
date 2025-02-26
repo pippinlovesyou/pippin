@@ -3,6 +3,7 @@
 import logging
 from datetime import timedelta
 from framework.activity_decorator import activity, ActivityBase, ActivityResult
+from framework.prompt_loader import PromptLoader
 from skills.skill_chat import chat_skill
 
 logger = logging.getLogger(__name__)
@@ -19,10 +20,8 @@ class DailyThoughtActivity(ActivityBase):
 
     def __init__(self):
         super().__init__()
-        self.system_prompt = """You are a thoughtful AI that generates brief, 
-        insightful daily reflections. Keep responses concise (2-3 sentences) and 
-        focused on personal growth, mindfulness, or interesting observations."""
-
+        self.prompt_loader = PromptLoader()
+        
     async def execute(self, shared_data) -> ActivityResult:
         """Execute the daily thought activity."""
         try:
@@ -32,10 +31,20 @@ class DailyThoughtActivity(ActivityBase):
             if not await chat_skill.initialize():
                 return ActivityResult.error_result("Failed to initialize chat skill")
 
+            # Load required prompts
+            activity_name = self.__class__.__name__
+            prompts = self.prompt_loader.get_prompts(activity_name)
+
+            if not prompts:
+                return ActivityResult.error_result("Failed to fetch prompts for {}".format(activity_name))
+
+            prompt = prompts.get("prompt", "")
+            system_prompt = prompts.get("system_prompt", "")
+
             # Generate the thought
             result = await chat_skill.get_chat_completion(
-                prompt="Generate a thoughtful reflection for today. Focus on personal growth, mindfulness, or an interesting perspective.",
-                system_prompt=self.system_prompt,
+                prompt=prompt,
+                system_prompt=system_prompt,
                 max_tokens=100,
             )
 
