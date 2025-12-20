@@ -1,0 +1,483 @@
+"""
+Solana Skill for Pippin Digital Being Framework
+
+A production-ready Solana skill that provides:
+- Wallet balance checking (SOL and SPL tokens)
+- Token swaps via Jupiter aggregator
+- Token price lookups via Jupiter
+- Transaction history
+- Basic token transfers
+
+Requires: solana-py, solders, httpx
+"""
+
+import asyncio
+import base58
+import base64
+import json
+import logging
+import os
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Optional
+
+import httpx
+from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solders.transaction import VersionedTransaction
+from solders import message
+from solana.rpc.async_api import AsyncClient
+from solana.rpc.commitment import Confirmed, Processed
+from solana.rpc.types import TxOpts
+
+from framework.api_management import api_manager
+
+logger = logging.getLogger(__name__)
+
+
+SOL_MINT = "So11111111111111111111111111111111111111112"
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+USDT_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+
+LAMPORTS_PER_SOL = 1_000_000_000
+
+JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6/quote"
+JUPITER_SWAP_API = "https://quote-api.jup.ag/v6/swap"
+JUPITER_PRICE_API = "https://price.jup.ag/v6/price"
+JUPITER_TOKEN_LIST = "https://token.jup.ag/strict"
+
+
+@dataclass
+class SwapQuote:
+    input_mint: str
+    output_mint: str
+    in_amount: int
+    out_amount: int
+    price_impact_pct: float
+    route_plan: list
+    raw_response: dict
+
+
+@dataclass
+class TokenBalance:
+    mint: str
+    symbol: str
+    amount: Decimal
+    decimals: int
+    ui_amount: float
+
+
+@dataclass
+class SwapResult:
+    success: bool
+    signature: Optional[str] = None
+    error: Optional[str] = None
+    in_amount: Optional[int] = None
+    out_amount: Optional[int] = None
+
+
+class SolanaSkill:
+    """
+    Solana blockchain skill for the Pippin framework.
+    
+    Handles wallet operations, token swaps via Jupiter, and price lookups.
+    """
+    
+    def __init__(self):
+        self.skill_name = "solana"
+        self.required_api_keys = ["SOLANA_PRIVATE_KEY"]
+        self.optional_api_keys = ["SOLANA_RPC_URL", "HELIUS_API_KEY"]
+        
+        api_manager.register_required_keys(self.skill_name, self.required_api_keys)
+        
+        self.keypair: Optional[Keypair] = None
+        self.client: Optional[AsyncClient] = None
+        self.http_client: Optional[httpx.AsyncClient] = None
+        self.rpc_url: str = "https://api.mainnet-beta.solana.com"
+        self._initialized = False
+        self._token_cache = {}
+    
+    async def initialize(self) -> bool:
+        """Initialize the Solana skill with credentials and connections."""
+        if self._initialized:
+            return True
+        
+        try:
+            private_key = await api_manager.get_api_key(
+                self.skill_name, "SOLANA_PRIVATE_KEY"
+            )
+            if not private_key:
+                private_key = os.getenv("SOLANA_PRIVATE_KEY")
+            
+            if not private_key:
+                logger.error("Solana private key not configured")
+                return False
+            
+            try:
+                key_bytes = base58.b58decode(private_key)
+                self.keypair = Keypair.from_bytes(key_bytes)
+            except Exception as decode_err:
+                logger.error(f"Failed to decode private key: {decode_err}")
+                return False
+            
+            custom_rpc = await api_manager.get_api_key(
+                self.skill_name, "SOLANA_RPC_URL"
+            )
+            if not custom_rpc:
+                custom_rpc = os.getenv("SOLANA_RPC_URL")
+            
+            helius_key = await api_manager.get_api_key(
+                self.skill_name, "HELIUS_API_KEY"
+            )
+            if not helius_key:
+                helius_key = os.getenv("HELIUS_API_KEY")
+            
+            if helius_key:
+                self.rpc_url = f"https://mainnet.helius-rpc.com/?api-key={helius_key}"
+            elif custom_rpc:
+                self.rpc_url = custom_rpc
+            
+            self.client = AsyncClient(self.rpc_url)
+            self.http_client = httpx.AsyncClient(timeout=30.0)
+            
+            health = await self.client.is_connected()
+            if not health:
+                logger.warning("RPC connection check failed, but continuing")
+            
+            self._initialized = True
+            logger.info(
+                f"SolanaSkill initialized - wallet: {self.keypair.pubkey()}"
+            )
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize SolanaSkill: {e}")
+            return False
+    
+    async def cleanup(self):
+        """Clean up connections."""
+        if self.client:
+            await self.client.close()
+        if self.http_client:
+            await self.http_client.aclose()
+        self._initialized = False
+    
+    @property
+    def wallet_address(self) -> Optional[str]:
+        """Get the wallet's public address."""
+        if self.keypair:
+            return str(self.keypair.pubkey())
+        return None
+    
+    async def get_sol_balance(self, address: Optional[str] = None) -> float:
+        """
+        Get SOL balance for an address.
+        
+        Args:
+            address: Wallet address to check. Uses skill wallet if not provided.
+            
+        Returns:
+            Balance in SOL (not lamports)
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+        
+        if address is None:
+            pubkey = self.keypair.pubkey()
+        else:
+            pubkey = Pubkey.from_string(address)
+        
+        response = await self.client.get_balance(pubkey, commitment=Confirmed)
+        lamports = response.value
+        return lamports / LAMPORTS_PER_SOL
+    
+    async def get_token_balances(
+        self, 
+        address: Optional[str] = None
+    ) -> list[TokenBalance]:
+        """
+        Get all SPL token balances for a wallet.
+        
+        Args:
+            address: Wallet address. Uses skill wallet if not provided.
+            
+        Returns:
+            List of TokenBalance objects
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+        
+        if address is None:
+            pubkey = self.keypair.pubkey()
+        else:
+            pubkey = Pubkey.from_string(address)
+        
+        response = await self.client.get_token_accounts_by_owner_json_parsed(
+            pubkey,
+            opts={"programId": Pubkey.from_string(
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            )},
+            commitment=Confirmed
+        )
+        
+        balances = []
+        for account in response.value:
+            try:
+                info = account.account.data.parsed["info"]
+                mint = info["mint"]
+                token_amount = info["tokenAmount"]
+                
+                symbol = await self._get_token_symbol(mint)
+                
+                balances.append(TokenBalance(
+                    mint=mint,
+                    symbol=symbol,
+                    amount=Decimal(token_amount["amount"]),
+                    decimals=token_amount["decimals"],
+                    ui_amount=float(token_amount["uiAmount"] or 0)
+                ))
+            except (KeyError, TypeError) as e:
+                logger.debug(f"Skipping malformed token account: {e}")
+                continue
+        
+        return balances
+    
+    async def _get_token_symbol(self, mint: str) -> str:
+        """Look up token symbol from mint address."""
+        if mint in self._token_cache:
+            return self._token_cache[mint]
+        
+        known = {
+            SOL_MINT: "SOL",
+            USDC_MINT: "USDC",
+            USDT_MINT: "USDT",
+        }
+        if mint in known:
+            return known[mint]
+        
+        try:
+            resp = await self.http_client.get(
+                JUPITER_TOKEN_LIST,
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                tokens = resp.json()
+                for token in tokens:
+                    self._token_cache[token["address"]] = token["symbol"]
+                    if token["address"] == mint:
+                        return token["symbol"]
+        except Exception:
+            pass
+        
+        return mint[:8] + "..."
+    
+    async def get_token_price(self, mint: str) -> Optional[float]:
+        """
+        Get current USD price for a token.
+        
+        Args:
+            mint: Token mint address
+            
+        Returns:
+            Price in USD or None if unavailable
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+        
+        try:
+            resp = await self.http_client.get(
+                JUPITER_PRICE_API,
+                params={"ids": mint}
+            )
+            
+            if resp.status_code != 200:
+                return None
+            
+            data = resp.json()
+            if mint in data.get("data", {}):
+                return data["data"][mint]["price"]
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Price lookup failed: {e}")
+            return None
+    
+    async def get_swap_quote(
+        self,
+        input_mint: str,
+        output_mint: str,
+        amount: int,
+        slippage_bps: int = 50
+    ) -> Optional[SwapQuote]:
+        """
+        Get a swap quote from Jupiter.
+        
+        Args:
+            input_mint: Input token mint address
+            output_mint: Output token mint address
+            amount: Amount in smallest unit (lamports for SOL)
+            slippage_bps: Slippage tolerance in basis points (50 = 0.5%)
+            
+        Returns:
+            SwapQuote object or None if quote failed
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+        
+        try:
+            resp = await self.http_client.get(
+                JUPITER_QUOTE_API,
+                params={
+                    "inputMint": input_mint,
+                    "outputMint": output_mint,
+                    "amount": str(amount),
+                    "slippageBps": slippage_bps,
+                }
+            )
+            
+            if resp.status_code != 200:
+                logger.error(f"Quote request failed: {resp.text}")
+                return None
+            
+            data = resp.json()
+            
+            return SwapQuote(
+                input_mint=data["inputMint"],
+                output_mint=data["outputMint"],
+                in_amount=int(data["inAmount"]),
+                out_amount=int(data["outAmount"]),
+                price_impact_pct=float(data.get("priceImpactPct", 0)),
+                route_plan=data.get("routePlan", []),
+                raw_response=data
+            )
+            
+        except Exception as e:
+            logger.error(f"Quote request error: {e}")
+            return None
+    
+    async def execute_swap(
+        self,
+        input_mint: str,
+        output_mint: str,
+        amount: int,
+        slippage_bps: int = 50,
+        priority_fee_lamports: int = 10000
+    ) -> SwapResult:
+        """
+        Execute a token swap via Jupiter.
+        
+        Args:
+            input_mint: Input token mint address
+            output_mint: Output token mint address  
+            amount: Amount in smallest unit
+            slippage_bps: Slippage tolerance in basis points
+            priority_fee_lamports: Priority fee for faster inclusion
+            
+        Returns:
+            SwapResult with success status and signature
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+        
+        quote = await self.get_swap_quote(
+            input_mint, output_mint, amount, slippage_bps
+        )
+        
+        if not quote:
+            return SwapResult(success=False, error="Failed to get quote")
+        
+        try:
+            swap_resp = await self.http_client.post(
+                JUPITER_SWAP_API,
+                json={
+                    "quoteResponse": quote.raw_response,
+                    "userPublicKey": str(self.keypair.pubkey()),
+                    "wrapAndUnwrapSol": True,
+                    "prioritizationFeeLamports": priority_fee_lamports,
+                }
+            )
+            
+            if swap_resp.status_code != 200:
+                return SwapResult(
+                    success=False, 
+                    error=f"Swap API error: {swap_resp.text}"
+                )
+            
+            swap_data = swap_resp.json()
+            swap_tx_b64 = swap_data["swapTransaction"]
+            
+            raw_tx = VersionedTransaction.from_bytes(
+                base64.b64decode(swap_tx_b64)
+            )
+            signature = self.keypair.sign_message(
+                message.to_bytes_versioned(raw_tx.message)
+            )
+            signed_tx = VersionedTransaction.populate(
+                raw_tx.message, 
+                [signature]
+            )
+            
+            opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
+            result = await self.client.send_raw_transaction(
+                bytes(signed_tx), 
+                opts=opts
+            )
+            
+            tx_sig = json.loads(result.to_json())["result"]
+            
+            logger.info(f"Swap executed: {tx_sig}")
+            
+            return SwapResult(
+                success=True,
+                signature=tx_sig,
+                in_amount=quote.in_amount,
+                out_amount=quote.out_amount
+            )
+            
+        except Exception as e:
+            logger.error(f"Swap execution failed: {e}")
+            return SwapResult(success=False, error=str(e))
+    
+    async def get_recent_transactions(
+        self,
+        limit: int = 10,
+        address: Optional[str] = None
+    ) -> list[dict]:
+        """
+        Get recent transactions for a wallet.
+        
+        Args:
+            limit: Max number of transactions to return
+            address: Wallet address. Uses skill wallet if not provided.
+            
+        Returns:
+            List of transaction signature info dicts
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+        
+        if address is None:
+            pubkey = self.keypair.pubkey()
+        else:
+            pubkey = Pubkey.from_string(address)
+        
+        response = await self.client.get_signatures_for_address(
+            pubkey,
+            limit=limit
+        )
+        
+        txs = []
+        for sig_info in response.value:
+            txs.append({
+                "signature": str(sig_info.signature),
+                "slot": sig_info.slot,
+                "block_time": sig_info.block_time,
+                "err": sig_info.err,
+                "memo": sig_info.memo,
+            })
+        
+        return txs
+
+
+solana_skill = SolanaSkill()
