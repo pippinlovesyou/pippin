@@ -6,7 +6,9 @@ A production-ready Solana skill that provides:
 - Token swaps via Jupiter aggregator
 - Token price lookups via Jupiter
 - Transaction history
-- Basic token transfers
+- SOL and SPL token transfers
+- Native and liquid staking (Marinade)
+- NFT operations (fetch, transfer, floor prices)
 
 Requires: solana-py, solders, httpx
 """
@@ -17,14 +19,18 @@ import base64
 import json
 import logging
 import os
-from dataclasses import dataclass
+import struct
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional
 
 import httpx
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
-from solders.transaction import VersionedTransaction
+from solders.transaction import VersionedTransaction, Transaction
+from solders.instruction import Instruction, AccountMeta
+from solders.system_program import TransferParams, transfer
+from solders.hash import Hash
 from solders import message
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed, Processed
@@ -45,6 +51,18 @@ JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6/quote"
 JUPITER_SWAP_API = "https://quote-api.jup.ag/v6/swap"
 JUPITER_PRICE_API = "https://price.jup.ag/v6/price"
 JUPITER_TOKEN_LIST = "https://token.jup.ag/strict"
+
+MSOL_MINT = "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"
+STAKE_PROGRAM_ID = "Stake11111111111111111111111111111111111111"
+TOKEN_METADATA_PROGRAM_ID = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+MAGIC_EDEN_API = "https://api-mainnet.magiceden.dev/v2"
+TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+SYSTEM_PROGRAM_ID = "11111111111111111111111111111111"
+SYSVAR_RENT_ID = "SysvarRent111111111111111111111111111111111"
+SYSVAR_CLOCK_ID = "SysvarC1ock11111111111111111111111111111111"
+SYSVAR_STAKE_HISTORY_ID = "SysvarStakeHistory1111111111111111111111111"
+STAKE_CONFIG_ID = "StakeConfig11111111111111111111111111111111"
 
 
 @dataclass
@@ -76,84 +94,136 @@ class SwapResult:
     out_amount: Optional[int] = None
 
 
+@dataclass
+class TransferResult:
+    success: bool
+    signature: Optional[str] = None
+    error: Optional[str] = None
+    amount: Optional[float] = None
+    recipient: Optional[str] = None
+
+
+@dataclass
+class StakeResult:
+    success: bool
+    signature: Optional[str] = None
+    stake_account: Optional[str] = None
+    error: Optional[str] = None
+    amount_lamports: Optional[int] = None
+
+
+@dataclass
+class StakeAccountInfo:
+    address: str
+    lamports: int
+    state: str
+    voter: Optional[str] = None
+    activation_epoch: Optional[int] = None
+    deactivation_epoch: Optional[int] = None
+
+
+@dataclass
+class NFTMetadata:
+    mint: str
+    name: str
+    symbol: str
+    uri: str
+    image: Optional[str] = None
+    description: Optional[str] = None
+    collection: Optional[str] = None
+    attributes: list = field(default_factory=list)
+
+
+@dataclass
+class NFTTransferResult:
+    success: bool
+    signature: Optional[str] = None
+    error: Optional[str] = None
+    mint: Optional[str] = None
+    recipient: Optional[str] = None
+
+
 class SolanaSkill:
     """
     Solana blockchain skill for the Pippin framework.
-    
-    Handles wallet operations, token swaps via Jupiter, and price lookups.
+
+    Handles wallet operations, token swaps via Jupiter, transfers,
+    staking, and NFT operations.
     """
-    
+
     def __init__(self):
         self.skill_name = "solana"
         self.required_api_keys = ["SOLANA_PRIVATE_KEY"]
         self.optional_api_keys = ["SOLANA_RPC_URL", "HELIUS_API_KEY"]
-        
+
         api_manager.register_required_keys(self.skill_name, self.required_api_keys)
-        
+
         self.keypair: Optional[Keypair] = None
         self.client: Optional[AsyncClient] = None
         self.http_client: Optional[httpx.AsyncClient] = None
         self.rpc_url: str = "https://api.mainnet-beta.solana.com"
         self._initialized = False
         self._token_cache = {}
-    
+        self._helius_api_key: Optional[str] = None
+
     async def initialize(self) -> bool:
         """Initialize the Solana skill with credentials and connections."""
         if self._initialized:
             return True
-        
+
         try:
             private_key = await api_manager.get_api_key(
                 self.skill_name, "SOLANA_PRIVATE_KEY"
             )
             if not private_key:
                 private_key = os.getenv("SOLANA_PRIVATE_KEY")
-            
+
             if not private_key:
                 logger.error("Solana private key not configured")
                 return False
-            
+
             try:
                 key_bytes = base58.b58decode(private_key)
                 self.keypair = Keypair.from_bytes(key_bytes)
             except Exception as decode_err:
                 logger.error(f"Failed to decode private key: {decode_err}")
                 return False
-            
+
             custom_rpc = await api_manager.get_api_key(
                 self.skill_name, "SOLANA_RPC_URL"
             )
             if not custom_rpc:
                 custom_rpc = os.getenv("SOLANA_RPC_URL")
-            
+
             helius_key = await api_manager.get_api_key(
                 self.skill_name, "HELIUS_API_KEY"
             )
             if not helius_key:
                 helius_key = os.getenv("HELIUS_API_KEY")
-            
+
             if helius_key:
+                self._helius_api_key = helius_key
                 self.rpc_url = f"https://mainnet.helius-rpc.com/?api-key={helius_key}"
             elif custom_rpc:
                 self.rpc_url = custom_rpc
-            
+
             self.client = AsyncClient(self.rpc_url)
             self.http_client = httpx.AsyncClient(timeout=30.0)
-            
+
             health = await self.client.is_connected()
             if not health:
                 logger.warning("RPC connection check failed, but continuing")
-            
+
             self._initialized = True
             logger.info(
                 f"SolanaSkill initialized - wallet: {self.keypair.pubkey()}"
             )
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize SolanaSkill: {e}")
             return False
-    
+
     async def cleanup(self):
         """Clean up connections."""
         if self.client:
@@ -161,74 +231,56 @@ class SolanaSkill:
         if self.http_client:
             await self.http_client.aclose()
         self._initialized = False
-    
+
     @property
     def wallet_address(self) -> Optional[str]:
-        """Get the wallet's public address."""
+        """Get the wallet public address."""
         if self.keypair:
             return str(self.keypair.pubkey())
         return None
-    
+
     async def get_sol_balance(self, address: Optional[str] = None) -> float:
-        """
-        Get SOL balance for an address.
-        
-        Args:
-            address: Wallet address to check. Uses skill wallet if not provided.
-            
-        Returns:
-            Balance in SOL (not lamports)
-        """
+        """Get SOL balance for an address."""
         if not self._initialized:
             raise RuntimeError("Skill not initialized")
-        
+
         if address is None:
             pubkey = self.keypair.pubkey()
         else:
             pubkey = Pubkey.from_string(address)
-        
+
         response = await self.client.get_balance(pubkey, commitment=Confirmed)
         lamports = response.value
         return lamports / LAMPORTS_PER_SOL
-    
+
     async def get_token_balances(
-        self, 
+        self,
         address: Optional[str] = None
     ) -> list[TokenBalance]:
-        """
-        Get all SPL token balances for a wallet.
-        
-        Args:
-            address: Wallet address. Uses skill wallet if not provided.
-            
-        Returns:
-            List of TokenBalance objects
-        """
+        """Get all SPL token balances for a wallet."""
         if not self._initialized:
             raise RuntimeError("Skill not initialized")
-        
+
         if address is None:
             pubkey = self.keypair.pubkey()
         else:
             pubkey = Pubkey.from_string(address)
-        
+
         response = await self.client.get_token_accounts_by_owner_json_parsed(
             pubkey,
-            opts={"programId": Pubkey.from_string(
-                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-            )},
+            opts={"programId": Pubkey.from_string(TOKEN_PROGRAM_ID)},
             commitment=Confirmed
         )
-        
+
         balances = []
         for account in response.value:
             try:
                 info = account.account.data.parsed["info"]
                 mint = info["mint"]
                 token_amount = info["tokenAmount"]
-                
+
                 symbol = await self._get_token_symbol(mint)
-                
+
                 balances.append(TokenBalance(
                     mint=mint,
                     symbol=symbol,
@@ -239,22 +291,23 @@ class SolanaSkill:
             except (KeyError, TypeError) as e:
                 logger.debug(f"Skipping malformed token account: {e}")
                 continue
-        
+
         return balances
-    
+
     async def _get_token_symbol(self, mint: str) -> str:
         """Look up token symbol from mint address."""
         if mint in self._token_cache:
             return self._token_cache[mint]
-        
+
         known = {
             SOL_MINT: "SOL",
             USDC_MINT: "USDC",
             USDT_MINT: "USDT",
+            MSOL_MINT: "mSOL",
         }
         if mint in known:
             return known[mint]
-        
+
         try:
             resp = await self.http_client.get(
                 JUPITER_TOKEN_LIST,
@@ -268,41 +321,34 @@ class SolanaSkill:
                         return token["symbol"]
         except Exception:
             pass
-        
+
         return mint[:8] + "..."
-    
+
+
     async def get_token_price(self, mint: str) -> Optional[float]:
-        """
-        Get current USD price for a token.
-        
-        Args:
-            mint: Token mint address
-            
-        Returns:
-            Price in USD or None if unavailable
-        """
+        """Get current USD price for a token."""
         if not self._initialized:
             raise RuntimeError("Skill not initialized")
-        
+
         try:
             resp = await self.http_client.get(
                 JUPITER_PRICE_API,
                 params={"ids": mint}
             )
-            
+
             if resp.status_code != 200:
                 return None
-            
+
             data = resp.json()
             if mint in data.get("data", {}):
                 return data["data"][mint]["price"]
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Price lookup failed: {e}")
             return None
-    
+
     async def get_swap_quote(
         self,
         input_mint: str,
@@ -310,21 +356,10 @@ class SolanaSkill:
         amount: int,
         slippage_bps: int = 50
     ) -> Optional[SwapQuote]:
-        """
-        Get a swap quote from Jupiter.
-        
-        Args:
-            input_mint: Input token mint address
-            output_mint: Output token mint address
-            amount: Amount in smallest unit (lamports for SOL)
-            slippage_bps: Slippage tolerance in basis points (50 = 0.5%)
-            
-        Returns:
-            SwapQuote object or None if quote failed
-        """
+        """Get a swap quote from Jupiter."""
         if not self._initialized:
             raise RuntimeError("Skill not initialized")
-        
+
         try:
             resp = await self.http_client.get(
                 JUPITER_QUOTE_API,
@@ -335,13 +370,13 @@ class SolanaSkill:
                     "slippageBps": slippage_bps,
                 }
             )
-            
+
             if resp.status_code != 200:
                 logger.error(f"Quote request failed: {resp.text}")
                 return None
-            
+
             data = resp.json()
-            
+
             return SwapQuote(
                 input_mint=data["inputMint"],
                 output_mint=data["outputMint"],
@@ -351,11 +386,11 @@ class SolanaSkill:
                 route_plan=data.get("routePlan", []),
                 raw_response=data
             )
-            
+
         except Exception as e:
             logger.error(f"Quote request error: {e}")
             return None
-    
+
     async def execute_swap(
         self,
         input_mint: str,
@@ -364,29 +399,17 @@ class SolanaSkill:
         slippage_bps: int = 50,
         priority_fee_lamports: int = 10000
     ) -> SwapResult:
-        """
-        Execute a token swap via Jupiter.
-        
-        Args:
-            input_mint: Input token mint address
-            output_mint: Output token mint address  
-            amount: Amount in smallest unit
-            slippage_bps: Slippage tolerance in basis points
-            priority_fee_lamports: Priority fee for faster inclusion
-            
-        Returns:
-            SwapResult with success status and signature
-        """
+        """Execute a token swap via Jupiter."""
         if not self._initialized:
             raise RuntimeError("Skill not initialized")
-        
+
         quote = await self.get_swap_quote(
             input_mint, output_mint, amount, slippage_bps
         )
-        
+
         if not quote:
             return SwapResult(success=False, error="Failed to get quote")
-        
+
         try:
             swap_resp = await self.http_client.post(
                 JUPITER_SWAP_API,
@@ -397,16 +420,16 @@ class SolanaSkill:
                     "prioritizationFeeLamports": priority_fee_lamports,
                 }
             )
-            
+
             if swap_resp.status_code != 200:
                 return SwapResult(
-                    success=False, 
+                    success=False,
                     error=f"Swap API error: {swap_resp.text}"
                 )
-            
+
             swap_data = swap_resp.json()
             swap_tx_b64 = swap_data["swapTransaction"]
-            
+
             raw_tx = VersionedTransaction.from_bytes(
                 base64.b64decode(swap_tx_b64)
             )
@@ -414,59 +437,50 @@ class SolanaSkill:
                 message.to_bytes_versioned(raw_tx.message)
             )
             signed_tx = VersionedTransaction.populate(
-                raw_tx.message, 
+                raw_tx.message,
                 [signature]
             )
-            
+
             opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
             result = await self.client.send_raw_transaction(
-                bytes(signed_tx), 
+                bytes(signed_tx),
                 opts=opts
             )
-            
+
             tx_sig = json.loads(result.to_json())["result"]
-            
+
             logger.info(f"Swap executed: {tx_sig}")
-            
+
             return SwapResult(
                 success=True,
                 signature=tx_sig,
                 in_amount=quote.in_amount,
                 out_amount=quote.out_amount
             )
-            
+
         except Exception as e:
             logger.error(f"Swap execution failed: {e}")
             return SwapResult(success=False, error=str(e))
-    
+
     async def get_recent_transactions(
         self,
         limit: int = 10,
         address: Optional[str] = None
     ) -> list[dict]:
-        """
-        Get recent transactions for a wallet.
-        
-        Args:
-            limit: Max number of transactions to return
-            address: Wallet address. Uses skill wallet if not provided.
-            
-        Returns:
-            List of transaction signature info dicts
-        """
+        """Get recent transactions for a wallet."""
         if not self._initialized:
             raise RuntimeError("Skill not initialized")
-        
+
         if address is None:
             pubkey = self.keypair.pubkey()
         else:
             pubkey = Pubkey.from_string(address)
-        
+
         response = await self.client.get_signatures_for_address(
             pubkey,
             limit=limit
         )
-        
+
         txs = []
         for sig_info in response.value:
             txs.append({
@@ -476,8 +490,769 @@ class SolanaSkill:
                 "err": sig_info.err,
                 "memo": sig_info.memo,
             })
-        
+
         return txs
 
 
+    # -------------------------------------------------------------------------
+    # Token Transfer Methods
+    # -------------------------------------------------------------------------
+
+    async def transfer_sol(
+        self,
+        recipient: str,
+        amount: float
+    ) -> TransferResult:
+        """Transfer SOL to another wallet."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            recipient_pubkey = Pubkey.from_string(recipient)
+            lamports = int(amount * LAMPORTS_PER_SOL)
+
+            blockhash_resp = await self.client.get_latest_blockhash(
+                commitment=Confirmed
+            )
+            recent_blockhash = blockhash_resp.value.blockhash
+
+            transfer_ix = transfer(
+                TransferParams(
+                    from_pubkey=self.keypair.pubkey(),
+                    to_pubkey=recipient_pubkey,
+                    lamports=lamports
+                )
+            )
+
+            msg = message.Message.new_with_blockhash(
+                [transfer_ix],
+                self.keypair.pubkey(),
+                Hash.from_string(str(recent_blockhash))
+            )
+            tx = Transaction.new_unsigned(msg)
+            tx.sign([self.keypair], Hash.from_string(str(recent_blockhash)))
+
+            opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
+            result = await self.client.send_raw_transaction(
+                bytes(tx),
+                opts=opts
+            )
+
+            tx_sig = json.loads(result.to_json())["result"]
+
+            logger.info(f"SOL transfer executed: {tx_sig}")
+
+            return TransferResult(
+                success=True,
+                signature=tx_sig,
+                amount=amount,
+                recipient=recipient
+            )
+
+        except Exception as e:
+            logger.error(f"SOL transfer failed: {e}")
+            return TransferResult(success=False, error=str(e))
+
+    def _get_associated_token_address(
+        self,
+        owner: Pubkey,
+        mint: Pubkey
+    ) -> Pubkey:
+        """Derive the associated token account address for an owner and mint."""
+        seeds = [
+            bytes(owner),
+            bytes(Pubkey.from_string(TOKEN_PROGRAM_ID)),
+            bytes(mint),
+        ]
+        program_id = Pubkey.from_string(ASSOCIATED_TOKEN_PROGRAM_ID)
+
+        ata, _ = Pubkey.find_program_address(seeds, program_id)
+        return ata
+
+    def _create_ata_instruction(
+        self,
+        payer: Pubkey,
+        owner: Pubkey,
+        mint: Pubkey
+    ) -> Instruction:
+        """Create instruction to initialize an associated token account."""
+        ata = self._get_associated_token_address(owner, mint)
+
+        keys = [
+            AccountMeta(payer, is_signer=True, is_writable=True),
+            AccountMeta(ata, is_signer=False, is_writable=True),
+            AccountMeta(owner, is_signer=False, is_writable=False),
+            AccountMeta(mint, is_signer=False, is_writable=False),
+            AccountMeta(
+                Pubkey.from_string(SYSTEM_PROGRAM_ID),
+                is_signer=False,
+                is_writable=False
+            ),
+            AccountMeta(
+                Pubkey.from_string(TOKEN_PROGRAM_ID),
+                is_signer=False,
+                is_writable=False
+            ),
+        ]
+
+        return Instruction(
+            program_id=Pubkey.from_string(ASSOCIATED_TOKEN_PROGRAM_ID),
+            accounts=keys,
+            data=bytes()
+        )
+
+    def _create_token_transfer_instruction(
+        self,
+        source: Pubkey,
+        destination: Pubkey,
+        owner: Pubkey,
+        amount: int
+    ) -> Instruction:
+        """Create SPL token transfer instruction."""
+        keys = [
+            AccountMeta(source, is_signer=False, is_writable=True),
+            AccountMeta(destination, is_signer=False, is_writable=True),
+            AccountMeta(owner, is_signer=True, is_writable=False),
+        ]
+
+        data = bytes([3]) + struct.pack("<Q", amount)
+
+        return Instruction(
+            program_id=Pubkey.from_string(TOKEN_PROGRAM_ID),
+            accounts=keys,
+            data=data
+        )
+
+    async def transfer_spl_token(
+        self,
+        mint: str,
+        recipient: str,
+        amount: float
+    ) -> TransferResult:
+        """Transfer SPL tokens to another wallet. Auto-creates recipient ATA if needed."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            mint_pubkey = Pubkey.from_string(mint)
+            recipient_pubkey = Pubkey.from_string(recipient)
+
+            mint_resp = await self.client.get_account_info_json_parsed(
+                mint_pubkey,
+                commitment=Confirmed
+            )
+            if not mint_resp.value:
+                return TransferResult(success=False, error="Invalid mint address")
+
+            decimals = mint_resp.value.data.parsed["info"]["decimals"]
+            raw_amount = int(amount * (10 ** decimals))
+
+            source_ata = self._get_associated_token_address(
+                self.keypair.pubkey(),
+                mint_pubkey
+            )
+            dest_ata = self._get_associated_token_address(
+                recipient_pubkey,
+                mint_pubkey
+            )
+
+            instructions = []
+
+            dest_ata_resp = await self.client.get_account_info(
+                dest_ata,
+                commitment=Confirmed
+            )
+            if not dest_ata_resp.value:
+                create_ata_ix = self._create_ata_instruction(
+                    self.keypair.pubkey(),
+                    recipient_pubkey,
+                    mint_pubkey
+                )
+                instructions.append(create_ata_ix)
+                logger.info(f"Creating ATA for recipient: {dest_ata}")
+
+            transfer_ix = self._create_token_transfer_instruction(
+                source_ata,
+                dest_ata,
+                self.keypair.pubkey(),
+                raw_amount
+            )
+            instructions.append(transfer_ix)
+
+            blockhash_resp = await self.client.get_latest_blockhash(
+                commitment=Confirmed
+            )
+            recent_blockhash = blockhash_resp.value.blockhash
+
+            msg = message.Message.new_with_blockhash(
+                instructions,
+                self.keypair.pubkey(),
+                Hash.from_string(str(recent_blockhash))
+            )
+            tx = Transaction.new_unsigned(msg)
+            tx.sign([self.keypair], Hash.from_string(str(recent_blockhash)))
+
+            opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
+            result = await self.client.send_raw_transaction(
+                bytes(tx),
+                opts=opts
+            )
+
+            tx_sig = json.loads(result.to_json())["result"]
+
+            logger.info(f"SPL token transfer executed: {tx_sig}")
+
+            return TransferResult(
+                success=True,
+                signature=tx_sig,
+                amount=amount,
+                recipient=recipient
+            )
+
+        except Exception as e:
+            logger.error(f"SPL token transfer failed: {e}")
+            return TransferResult(success=False, error=str(e))
+
+    # -------------------------------------------------------------------------
+    # Staking Methods
+    # -------------------------------------------------------------------------
+
+    async def stake_sol_native(
+        self,
+        amount: float,
+        validator_vote_account: str
+    ) -> StakeResult:
+        """Stake SOL natively to a validator."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            lamports = int(amount * LAMPORTS_PER_SOL)
+            voter_pubkey = Pubkey.from_string(validator_vote_account)
+            stake_program = Pubkey.from_string(STAKE_PROGRAM_ID)
+
+            stake_keypair = Keypair()
+            stake_pubkey = stake_keypair.pubkey()
+
+            rent_resp = await self.client.get_minimum_balance_for_rent_exemption(200)
+            rent_lamports = rent_resp.value
+
+            total_lamports = lamports + rent_lamports
+
+            create_account_ix = Instruction(
+                program_id=Pubkey.from_string(SYSTEM_PROGRAM_ID),
+                accounts=[
+                    AccountMeta(self.keypair.pubkey(), is_signer=True, is_writable=True),
+                    AccountMeta(stake_pubkey, is_signer=True, is_writable=True),
+                ],
+                data=bytes([0, 0, 0, 0]) + struct.pack("<Q", total_lamports) +
+                     struct.pack("<Q", 200) + bytes(stake_program)
+            )
+
+            staker_bytes = bytes(self.keypair.pubkey())
+            withdrawer_bytes = bytes(self.keypair.pubkey())
+
+            authorized_data = staker_bytes + withdrawer_bytes
+            lockup_data = bytes(8 + 8 + 32)
+            initialize_data = bytes([0, 0, 0, 0]) + authorized_data + lockup_data
+
+            initialize_ix = Instruction(
+                program_id=stake_program,
+                accounts=[
+                    AccountMeta(stake_pubkey, is_signer=False, is_writable=True),
+                    AccountMeta(
+                        Pubkey.from_string(SYSVAR_RENT_ID),
+                        is_signer=False,
+                        is_writable=False
+                    ),
+                ],
+                data=initialize_data
+            )
+
+            delegate_data = bytes([2, 0, 0, 0])
+
+            delegate_ix = Instruction(
+                program_id=stake_program,
+                accounts=[
+                    AccountMeta(stake_pubkey, is_signer=False, is_writable=True),
+                    AccountMeta(voter_pubkey, is_signer=False, is_writable=False),
+                    AccountMeta(
+                        Pubkey.from_string(SYSVAR_CLOCK_ID),
+                        is_signer=False,
+                        is_writable=False
+                    ),
+                    AccountMeta(
+                        Pubkey.from_string(SYSVAR_STAKE_HISTORY_ID),
+                        is_signer=False,
+                        is_writable=False
+                    ),
+                    AccountMeta(
+                        Pubkey.from_string(STAKE_CONFIG_ID),
+                        is_signer=False,
+                        is_writable=False
+                    ),
+                    AccountMeta(self.keypair.pubkey(), is_signer=True, is_writable=False),
+                ],
+                data=delegate_data
+            )
+
+            blockhash_resp = await self.client.get_latest_blockhash(
+                commitment=Confirmed
+            )
+            recent_blockhash = blockhash_resp.value.blockhash
+
+            instructions = [create_account_ix, initialize_ix, delegate_ix]
+
+            msg = message.Message.new_with_blockhash(
+                instructions,
+                self.keypair.pubkey(),
+                Hash.from_string(str(recent_blockhash))
+            )
+            tx = Transaction.new_unsigned(msg)
+            tx.sign(
+                [self.keypair, stake_keypair],
+                Hash.from_string(str(recent_blockhash))
+            )
+
+            opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
+            result = await self.client.send_raw_transaction(
+                bytes(tx),
+                opts=opts
+            )
+
+            tx_sig = json.loads(result.to_json())["result"]
+
+            logger.info(
+                f"Native stake created: {tx_sig}, stake account: {stake_pubkey}"
+            )
+
+            return StakeResult(
+                success=True,
+                signature=tx_sig,
+                stake_account=str(stake_pubkey),
+                amount_lamports=lamports
+            )
+
+        except Exception as e:
+            logger.error(f"Native staking failed: {e}")
+            return StakeResult(success=False, error=str(e))
+
+
+    async def stake_sol_marinade(
+        self,
+        amount: float,
+        slippage_bps: int = 50
+    ) -> StakeResult:
+        """Liquid stake SOL via Marinade by swapping SOL to mSOL through Jupiter."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            lamports = int(amount * LAMPORTS_PER_SOL)
+
+            swap_result = await self.execute_swap(
+                input_mint=SOL_MINT,
+                output_mint=MSOL_MINT,
+                amount=lamports,
+                slippage_bps=slippage_bps
+            )
+
+            if not swap_result.success:
+                return StakeResult(
+                    success=False,
+                    error=f"Marinade stake swap failed: {swap_result.error}"
+                )
+
+            logger.info(
+                f"Marinade stake completed: {swap_result.signature}, "
+                f"mSOL received: {swap_result.out_amount}"
+            )
+
+            return StakeResult(
+                success=True,
+                signature=swap_result.signature,
+                amount_lamports=lamports
+            )
+
+        except Exception as e:
+            logger.error(f"Marinade staking failed: {e}")
+            return StakeResult(success=False, error=str(e))
+
+    async def unstake_marinade(
+        self,
+        amount: float,
+        slippage_bps: int = 50
+    ) -> StakeResult:
+        """Instant unstake mSOL back to SOL via Jupiter swap."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            msol_amount = int(amount * 1_000_000_000)
+
+            swap_result = await self.execute_swap(
+                input_mint=MSOL_MINT,
+                output_mint=SOL_MINT,
+                amount=msol_amount,
+                slippage_bps=slippage_bps
+            )
+
+            if not swap_result.success:
+                return StakeResult(
+                    success=False,
+                    error=f"Marinade unstake swap failed: {swap_result.error}"
+                )
+
+            logger.info(
+                f"Marinade unstake completed: {swap_result.signature}, "
+                f"SOL received: {swap_result.out_amount}"
+            )
+
+            return StakeResult(
+                success=True,
+                signature=swap_result.signature,
+                amount_lamports=swap_result.out_amount
+            )
+
+        except Exception as e:
+            logger.error(f"Marinade unstaking failed: {e}")
+            return StakeResult(success=False, error=str(e))
+
+    async def get_stake_accounts(
+        self,
+        address: Optional[str] = None
+    ) -> list[StakeAccountInfo]:
+        """List all stake accounts owned by a wallet."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        if address is None:
+            owner_pubkey = self.keypair.pubkey()
+        else:
+            owner_pubkey = Pubkey.from_string(address)
+
+        try:
+            stake_program = Pubkey.from_string(STAKE_PROGRAM_ID)
+
+            response = await self.client.get_program_accounts(
+                stake_program,
+                commitment=Confirmed,
+                encoding="jsonParsed",
+                filters=[
+                    {"memcmp": {"offset": 12, "bytes": str(owner_pubkey)}}
+                ]
+            )
+
+            stake_accounts = []
+            for account in response.value:
+                try:
+                    parsed = account.account.data.parsed
+                    info = parsed["info"]
+                    stake_info = info.get("stake", {})
+                    delegation = stake_info.get("delegation", {})
+
+                    state = parsed.get("type", "unknown")
+
+                    stake_accounts.append(StakeAccountInfo(
+                        address=str(account.pubkey),
+                        lamports=account.account.lamports,
+                        state=state,
+                        voter=delegation.get("voter"),
+                        activation_epoch=delegation.get("activationEpoch"),
+                        deactivation_epoch=delegation.get("deactivationEpoch")
+                    ))
+                except (KeyError, TypeError, AttributeError) as e:
+                    logger.debug(f"Skipping malformed stake account: {e}")
+                    continue
+
+            return stake_accounts
+
+        except Exception as e:
+            logger.error(f"Failed to fetch stake accounts: {e}")
+            return []
+
+
+    # -------------------------------------------------------------------------
+    # NFT Methods
+    # -------------------------------------------------------------------------
+
+    async def get_nfts(
+        self,
+        address: Optional[str] = None
+    ) -> list[NFTMetadata]:
+        """
+        Fetch all NFTs owned by a wallet.
+
+        Uses Helius DAS API if HELIUS_API_KEY is set, otherwise falls back
+        to on-chain parsing of token accounts with decimals=0 and amount=1.
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        if address is None:
+            owner = str(self.keypair.pubkey())
+        else:
+            owner = address
+
+        if self._helius_api_key:
+            return await self._get_nfts_helius(owner)
+        else:
+            return await self._get_nfts_onchain(owner)
+
+    async def _get_nfts_helius(self, owner: str) -> list[NFTMetadata]:
+        """Fetch NFTs using Helius DAS API."""
+        try:
+            rpc_url = f"https://mainnet.helius-rpc.com/?api-key={self._helius_api_key}"
+
+            payload = {
+                "jsonrpc": "2.0",
+                "id": "helius-nft-fetch",
+                "method": "getAssetsByOwner",
+                "params": {
+                    "ownerAddress": owner,
+                    "page": 1,
+                    "limit": 1000,
+                    "displayOptions": {
+                        "showFungible": False,
+                        "showNativeBalance": False
+                    }
+                }
+            }
+
+            resp = await self.http_client.post(rpc_url, json=payload)
+
+            if resp.status_code != 200:
+                logger.error(f"Helius DAS API error: {resp.text}")
+                return await self._get_nfts_onchain(owner)
+
+            data = resp.json()
+            result = data.get("result", {})
+            items = result.get("items", [])
+
+            nfts = []
+            for item in items:
+                try:
+                    content = item.get("content", {})
+                    metadata = content.get("metadata", {})
+                    links = content.get("links", {})
+
+                    grouping = item.get("grouping", [])
+                    collection = None
+                    for group in grouping:
+                        if group.get("group_key") == "collection":
+                            collection = group.get("group_value")
+                            break
+
+                    nfts.append(NFTMetadata(
+                        mint=item.get("id", ""),
+                        name=metadata.get("name", "Unknown"),
+                        symbol=metadata.get("symbol", ""),
+                        uri=content.get("json_uri", ""),
+                        image=links.get("image"),
+                        description=metadata.get("description"),
+                        collection=collection,
+                        attributes=metadata.get("attributes", [])
+                    ))
+                except (KeyError, TypeError) as e:
+                    logger.debug(f"Skipping malformed NFT: {e}")
+                    continue
+
+            return nfts
+
+        except Exception as e:
+            logger.error(f"Helius NFT fetch failed: {e}")
+            return await self._get_nfts_onchain(owner)
+
+
+    async def _get_nfts_onchain(self, owner: str) -> list[NFTMetadata]:
+        """Fetch NFTs by parsing token accounts with decimals=0 and amount=1."""
+        try:
+            owner_pubkey = Pubkey.from_string(owner)
+
+            response = await self.client.get_token_accounts_by_owner_json_parsed(
+                owner_pubkey,
+                opts={"programId": Pubkey.from_string(TOKEN_PROGRAM_ID)},
+                commitment=Confirmed
+            )
+
+            nfts = []
+            for account in response.value:
+                try:
+                    info = account.account.data.parsed["info"]
+                    token_amount = info["tokenAmount"]
+
+                    if (token_amount["decimals"] == 0 and
+                        int(token_amount["amount"]) == 1):
+
+                        mint = info["mint"]
+
+                        metadata = await self._fetch_nft_metadata(mint)
+                        if metadata:
+                            nfts.append(metadata)
+                        else:
+                            nfts.append(NFTMetadata(
+                                mint=mint,
+                                name="Unknown NFT",
+                                symbol="",
+                                uri=""
+                            ))
+
+                except (KeyError, TypeError) as e:
+                    logger.debug(f"Skipping token account: {e}")
+                    continue
+
+            return nfts
+
+        except Exception as e:
+            logger.error(f"On-chain NFT fetch failed: {e}")
+            return []
+
+    async def _fetch_nft_metadata(self, mint: str) -> Optional[NFTMetadata]:
+        """Fetch metadata for a single NFT from the metadata program."""
+        try:
+            mint_pubkey = Pubkey.from_string(mint)
+            metadata_program = Pubkey.from_string(TOKEN_METADATA_PROGRAM_ID)
+
+            seeds = [
+                b"metadata",
+                bytes(metadata_program),
+                bytes(mint_pubkey),
+            ]
+            metadata_pda, _ = Pubkey.find_program_address(seeds, metadata_program)
+
+            account_resp = await self.client.get_account_info(
+                metadata_pda,
+                commitment=Confirmed
+            )
+
+            if not account_resp.value:
+                return None
+
+            data = bytes(account_resp.value.data)
+
+            if len(data) < 100:
+                return None
+
+            offset = 1 + 32 + 32
+
+            name_len = struct.unpack("<I", data[offset:offset+4])[0]
+            offset += 4
+            name = data[offset:offset+name_len].decode("utf-8").rstrip("\x00")
+            offset += name_len
+
+            symbol_len = struct.unpack("<I", data[offset:offset+4])[0]
+            offset += 4
+            symbol = data[offset:offset+symbol_len].decode("utf-8").rstrip("\x00")
+            offset += symbol_len
+
+            uri_len = struct.unpack("<I", data[offset:offset+4])[0]
+            offset += 4
+            uri = data[offset:offset+uri_len].decode("utf-8").rstrip("\x00")
+
+            image = None
+            description = None
+            attributes = []
+
+            if uri:
+                try:
+                    json_resp = await self.http_client.get(uri, timeout=5.0)
+                    if json_resp.status_code == 200:
+                        json_data = json_resp.json()
+                        image = json_data.get("image")
+                        description = json_data.get("description")
+                        attributes = json_data.get("attributes", [])
+                except Exception:
+                    pass
+
+            return NFTMetadata(
+                mint=mint,
+                name=name,
+                symbol=symbol,
+                uri=uri,
+                image=image,
+                description=description,
+                attributes=attributes
+            )
+
+        except Exception as e:
+            logger.debug(f"Failed to fetch NFT metadata for {mint}: {e}")
+            return None
+
+
+    async def transfer_nft(
+        self,
+        mint: str,
+        recipient: str
+    ) -> NFTTransferResult:
+        """
+        Transfer an NFT to another wallet.
+
+        This is a wrapper around transfer_spl_token with amount=1.
+        """
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            result = await self.transfer_spl_token(
+                mint=mint,
+                recipient=recipient,
+                amount=1
+            )
+
+            if result.success:
+                logger.info(f"NFT transfer executed: {result.signature}")
+                return NFTTransferResult(
+                    success=True,
+                    signature=result.signature,
+                    mint=mint,
+                    recipient=recipient
+                )
+            else:
+                return NFTTransferResult(
+                    success=False,
+                    error=result.error,
+                    mint=mint,
+                    recipient=recipient
+                )
+
+        except Exception as e:
+            logger.error(f"NFT transfer failed: {e}")
+            return NFTTransferResult(
+                success=False,
+                error=str(e),
+                mint=mint,
+                recipient=recipient
+            )
+
+    async def get_nft_floor_price(
+        self,
+        collection_symbol: str
+    ) -> Optional[float]:
+        """Get floor price for an NFT collection from Magic Eden API."""
+        if not self._initialized:
+            raise RuntimeError("Skill not initialized")
+
+        try:
+            url = f"{MAGIC_EDEN_API}/collections/{collection_symbol}/stats"
+
+            resp = await self.http_client.get(url)
+
+            if resp.status_code != 200:
+                logger.error(f"Magic Eden API error: {resp.text}")
+                return None
+
+            data = resp.json()
+            floor_price = data.get("floorPrice")
+
+            if floor_price is not None:
+                return floor_price / LAMPORTS_PER_SOL
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Floor price lookup failed: {e}")
+            return None
+
+
 solana_skill = SolanaSkill()
+

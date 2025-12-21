@@ -1,0 +1,70 @@
+{
+  "activity_requirements": {
+    "TransferTokensActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 100
+    },
+    "StakeSolActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 100
+    },
+    "UnstakeSolActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 100
+    },
+    "CheckStakeAccountsActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 50
+    },
+    "GetNFTCollectionActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 200
+    },
+    "TransferNFTActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 100
+    },
+    "CheckNFTFloorPricesActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 100
+    },
+    "AnalyzeNFTPortfolioActivity": {
+      "required_skills": ["solana"],
+      "min_memory_space": 300
+    }
+  },
+  "activities_config": {
+    "TransferTokensActivity": {
+      "enabled": true,
+      "description": "Transfer SOL or SPL tokens to another wallet"
+    },
+    "StakeSolActivity": {
+      "enabled": true,
+      "description": "Stake SOL via native staking or Marinade liquid staking"
+    },
+    "UnstakeSolActivity": {
+      "enabled": true,
+      "description": "Unstake mSOL back to SOL via Marinade"
+    },
+    "CheckStakeAccountsActivity": {
+      "enabled": true,
+      "description": "View all stake accounts and mSOL balance"
+    },
+    "GetNFTCollectionActivity": {
+      "enabled": true,
+      "description": "Fetch all owned NFTs with metadata"
+    },
+    "TransferNFTActivity": {
+      "enabled": true,
+      "description": "Transfer an NFT to another wallet"
+    },
+    "CheckNFTFloorPricesActivity": {
+      "enabled": true,
+      "description": "Get floor prices for NFT collections"
+    },
+    "AnalyzeNFTPortfolioActivity": {
+      "enabled": true,
+      "description": "Full portfolio analysis with NFT valuations"
+    }
+  }
+}
