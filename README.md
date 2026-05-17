@@ -573,3 +573,172 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file.
 ---
 
 That’s it! We hope you enjoy building with the Pippin Framework. Whether you want your AI to brainstorm content, spin up tokens on Solana, or implement an entirely new skill from scratch, we’ve got you covered. If you have any questions or suggestions, please reach out or open an issue—happy hacking!
+---
+
+## ❓ FAQ
+
+### What is Pippin?
+
+Pippin is a flexible, open-source framework to create a digital "being" that learns about your goals/objectives, connects to various tools via API keys or OAuth (Composio), dynamically creates and tests new "Activities" in pursuit of objectives, manages memory to track actions, and provides both a Web UI and CLI wizard for onboarding.
+
+### How does Pippin differ from other agent frameworks?
+
+| Feature | Pippin | Other Frameworks |
+|---------|--------|------------------|
+| **Self-improvement** | Generates own Activities | Static workflows |
+| **Tool Integration** | Composio 250+ tools + custom | Limited integrations |
+| **Onboarding** | CLI wizard + Web UI | Code-only setup |
+| **Memory** | Short-term + long-term | Usually single-layer |
+| **State** | Energy, mood, custom fields | Optional/limited |
+| **Constraints** | Rate limits, cooldowns | Basic safety only |
+
+### What is the difference between CLI and Web UI onboarding?
+
+Both flows do the same underlying initialization:
+- Gather objectives and character persona
+- Set up LLM API keys or local models
+- Configure skills (Composio OAuth or manual API keys)
+- Create initial configuration files
+
+**Choose CLI wizard** if you prefer terminal workflows.
+**Choose Web UI** if you want a visual interface for configuration and monitoring.
+
+### What LLM providers are supported?
+
+- **OpenAI**: GPT-4, GPT-3.5 (via `skill_chat.py`)
+- **GPT4All**: Local models (via `skill_lite_llm.py`)
+- **Custom**: Any LLM provider via extending `skill_lite_llm.py`
+
+You can assign **different models to different tasks**:
+- Code generation
+- Daily analysis
+- Activity selection
+
+### How do I connect tools via Composio?
+
+Composio provides OAuth-based gateway to 250+ tools (Twitter, Slack, Google, etc.):
+
+1. Get a [Composio](https://composio.dev/) developer key
+2. Run onboarding wizard (CLI or Web UI)
+3. Select tools to connect
+4. Complete OAuth flows
+5. Skills are auto-generated for connected apps
+
+### How do I add custom skills?
+
+**Three ways:**
+
+1. **Manual API Keys**: Add API keys directly in `skills_config.json`
+2. **Custom Python**: Create `skill_*.py` file in `skills/` directory
+3. **AI-generated**: Let Pippin generate new skills via `BuildOrUpdateActivity`
+
+Example custom skill (Solana AgentKit):
+```python
+# skills/skill_solana_agent.py
+from framework.skill_base import SkillBase
+
+class SolanaAgentSkill(SkillBase):
+    def execute(self, action, params):
+        # Implement Solana interactions
+        pass
+```
+
+### What are the default Activities?
+
+- `activity_daily_thought.py`: Analyzes daily logs
+- `activity_suggest_new_activities.py`: Brainstorms new Activities
+- `activity_build_or_update.py`: Generates/updates Python code files
+
+Pippin can **dynamically create new Activities** based on objectives.
+
+### How does the memory system work?
+
+**Short-term memory:**
+- Recent logs or activity results (up to ~100 entries)
+- Used for immediate context
+
+**Long-term memory:**
+- Older logs archived by category
+- Used for historical analysis
+
+Memory persists across runs, so you can resume sessions.
+
+### What is state tracking?
+
+State holds the being's internal metrics:
+- **Energy**: Task execution capacity
+- **Mood**: Affects activity selection
+- **Timestamps**: Timing constraints
+- **Custom fields**: User-defined metrics
+
+State updates after each activity execution.
+
+### What constraints can I configure?
+
+Configure in `activity_constraints.json`:
+- **Rate limits**: "No more than 5 tweets per hour"
+- **Cooldowns**: Time between activity types
+- **Skill requirements**: Required skills for activities
+- **Frequency limits**: "Don't create new tokens more than once a month"
+
+### How does Activity selection work?
+
+**ActivitySelector algorithm:**
+1. Filter out activities failing cooldown/skill constraints
+2. If multiple remain → call LLM to decide best fit
+3. If none remain → propose new activities to fill gaps
+
+Selection considers current state (energy, mood) and objectives.
+
+### How do I run the agent?
+
+**Web UI:**
+```bash
+python server.py
+# Open http://localhost:8020
+# Click "Launch Agent"
+```
+
+**CLI:**
+```bash
+python framework/main.py
+# Ctrl+C to stop
+```
+
+### Troubleshooting
+
+**Onboarding won't start:**
+- Ensure Python 3.9+ is installed
+- Check all dependencies installed: `pip install -r requirements.txt`
+- Verify at least one LLM API key is provided
+
+**Composio OAuth fails:**
+- Verify Composio developer key is valid
+- Check OAuth redirect URI matches Composio config
+- Try refreshing browser session
+
+**Agent stops unexpectedly:**
+- Check error logs in memory
+- Verify skill API keys are valid
+- Check rate limits haven't been exceeded
+
+**Activity not executing:**
+- Verify skill is enabled in `skills_config.json`
+- Check activity has required skills available
+- Ensure cooldown period has passed
+
+**Web UI connection issues:**
+- Verify server is running: `python server.py`
+- Check port 8020 is not blocked
+- Try refreshing WebSocket connection
+
+### Where can I get help?
+
+- **Documentation**: This README and inline code comments
+- **Examples**: See `examples/` directory (if available)
+- **Issues**: [GitHub Issues](https://github.com/pippinlovesyou/pippin/issues)
+- **Contributing**: See [Contributing](#contributing) section
+
+If you have any questions or suggestions, please reach out or open an issue—happy hacking!
+
+---
