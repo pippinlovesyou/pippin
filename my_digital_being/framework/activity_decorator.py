@@ -97,7 +97,7 @@ class ActivityResult:
             else:
                 try:
                     data_dict = json.loads(json.dumps(self.data))
-                except:
+                except Exception:
                     data_dict = str(self.data)
 
         return {
